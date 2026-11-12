@@ -159,6 +159,8 @@ async function route(req, env) {
   const path = url.pathname;
   const method = req.method;
 
+  if (path.startsWith('/.well-known/')) return json({ error: 'Not found' }, 404); // no OAuth discovery: token-in-URL auth
+
   if (path === '/mcp' || path.startsWith('/mcp/')) {
     if (!env.DB) return json({ error: 'D1 binding "DB" is not set' }, 500);
     schemaReady ??= ensureSchema(env).catch(e => { schemaReady = null; throw e; });
@@ -295,7 +297,7 @@ const TOOLS = [
     description: 'Use this to save answers to a product requirement. Omit id to create a new one (answers must then include overview.title). With merge=true (default) only the given keys change; pass null for a key to clear it. Values must use field keys and option values from get_spec_form. Returns the saved requirement, any rejected answers with reasons, the questions still unanswered, and a link to the page.',
     inputSchema: { type: 'object', properties: {
       id: { type: 'string', description: 'Existing requirement id; omit to create a new one' },
-      answers: { type: 'object', description: 'Map of field key -> value. text/textarea/date: string; number: number; select: one option value; multi: array of option values; ynt: "yes" | "no" | "tbd"; features: array of {name, need, notes}' },
+      answers: { type: 'object', additionalProperties: true, description: 'Map of field key -> value. text/textarea/date: string; number: number; select: one option value; multi: array of option values; ynt: "yes" | "no" | "tbd"; features: array of {name, need, notes}' },
       status: { type: 'string', enum: ['draft', 'submitted', 'in_review', 'approved', 'archived'], description: 'Defaults to the current status (draft for new)' },
       merge: { type: 'boolean', description: 'Merge with saved answers (default true). false replaces all answers.' } },
       required: ['answers'], additionalProperties: false },
@@ -306,7 +308,11 @@ async function handleMcp(req, env, url) {
   const token = url.pathname.slice(5);
   if (!env.MCP_TOKEN) return json({ error: 'MCP is not enabled: set the MCP_TOKEN secret on this Worker' }, 503);
   if (!(await safeEqual(token, env.MCP_TOKEN, env))) return json({ error: 'Not found' }, 404);
-  if (req.method === 'GET' || req.method === 'DELETE') return new Response(null, { status: 405, headers: { allow: 'POST' } });
+  if (req.method === 'GET' && !(req.headers.get('accept') || '').includes('text/event-stream')) {
+    // Opening the URL in a browser: quick health check
+    return json({ ok: true, mcp: 'ready', server: 'product-spec-configurator', tools: TOOLS.map(t => t.name) });
+  }
+  if (req.method === 'GET' || req.method === 'DELETE' || req.method === 'HEAD') return new Response(null, { status: 405, headers: { allow: 'POST' } });
   if (req.method !== 'POST') return new Response(null, { status: 405 });
 
   const msg = await req.json().catch(() => null);
