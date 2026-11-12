@@ -1,6 +1,6 @@
 {
   "name": "product-spec-interviewer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Interviews a product manager (by voice or text) to capture a new building-automation product requirement and saves it into the Product Spec Configurator.",
   "author": {
     "name": "75F / Carrier product team",
@@ -20,7 +20,7 @@
   "interface": {
     "displayName": "Product Spec Interviewer",
     "shortDescription": "Capture product requirements by conversation",
-    "longDescription": "Asks the Product Spec Configurator's questions one at a time (I/O, communication interfaces and protocols, display, form factor and plastics reuse, certification, firmware profiles and features, mock-up, BOQ and product match), follows the branches, asks for clarification on ambiguous answers, and saves each section to the requirement sheet so it can be reviewed on the web page.",
+    "longDescription": "Asks the Product Spec Configurator's questions one at a time (I/O, communication interfaces and protocols, display, form factor and plastics reuse, certification, firmware profiles and features, mock-up, BOQ and product match), follows the branches, and walks through the reusable control features of the selected profiles (2-pipe and 4-pipe FCU, CPU, HPU, 2-pipe and 4-pipe unit ventilator), recording only what changes. Asks for clarification on ambiguous answers and saves each section to the requirement sheet for review on the web page.",
     "developerName": "75F / Carrier product team",
     "category": "Productivity",
     "capabilities": [

@@ -306,7 +306,7 @@ const FEATURES = {
     behaviour: ['Filter switch (N/O or N/C) or sensor-bus filter monitor reports OK / Replace; shown as a status message and usable for alerts.'] },
 
   emergency_shutoff: { name: 'Emergency shutoff input', group: 'Inputs & protection',
-    behaviour: ['Emergency shutoff (N/O or N/C) detected → all relays off and all fan, conditioning and outside-air damper analog outputs at minimum.'] },
+    behaviour: ['Emergency shutoff (N/O or N/C) detected → all relays off and all fan, conditioning and outside-air damper analog outputs at minimum, immediately (stage-down timers are not respected).'] },
 
   ui_types: { name: 'Universal input types', group: 'Inputs & protection',
     behaviour: [
@@ -544,12 +544,66 @@ const PROFILES = {
       'key_card', 'multi_module', 'failsafe_settings', 'sensor_bus', 'display_settings',
       { id: 'default_config', behaviour: ['Outside-air optimization is on by default; turning it off hides economizer, DCV-on-OA, pre-purge and the OA damper output option. Enabling it requires mixed air and outside air sensors and an OA damper.'] }],
   },
-};
 
-/* Noted for a future 4-pipe unit ventilator profile (from the 2-pipe UV document's port table):
-   Relays: 1 Fan medium, 2 Fan high, 3 Fan low-ventilation, 4 Heating water valve, 5 Aux heating 1, 6 Cooling water valve, 7 Aux heating 2, 8 Fan enable.
-   Analog: 1 Fan speed, 2 Face & bypass damper, 3 OA optimization damper, 4 DCV damper. Universal inputs as 2-pipe UV (UI1 supply water temp not mandatory).
-   Analog options: cooling modulating valve, heating modulating valve, fan speed, OA optimization damper, DCV damper, externally mapped. */
+  uv4: {
+    name: 'Unit ventilator, 4-pipe with economizer',
+    summary: 'Unit ventilator with separate heating and cooling coils (hot and chilled water), retrofitted on HyperStat Split + connect module. Supply air temperature via face & bypass damper with 2-position heating and cooling valves, or via modulating (or 2-position) heating and cooling valves. Outside-air optimization adds economizer, DCV, MAT safety and pre-purge. Markets: US & Canada.',
+    typicalIO: 'HyperStat Split + connect module: 8 relays, 4 analog outputs, 8 universal inputs, sensor bus (addresses 0–2; CO₂ on address 3 not yet available)',
+    portSets: [{ device: 'HyperStat Split', ports: [['Sensor bus address 0', 'Supply air temperature & humidity, filter monitor'], ['Sensor bus address 1', 'Mixed air temperature & humidity'], ['Sensor bus address 2', 'Outside air temperature & humidity'], ['Sensor bus address 3', 'CO₂ (not available in 4P UV yet)'],
+        ['Relay 1', 'Fan medium speed'], ['Relay 2', 'Fan high speed'], ['Relay 3', 'Fan low speed – ventilation'], ['Relay 4', 'Heating water valve'], ['Relay 5', 'Aux heating stage 1'], ['Relay 6', 'Cooling water valve'], ['Relay 7', 'Occupied enable'], ['Relay 8', 'Fan enable'],
+        ['Analog out 1', 'Fan speed'], ['Analog out 2', 'Face & bypass damper'], ['Analog out 3', 'Outside air optimization damper'], ['Analog out 4', 'DCV modulating damper'],
+        ['Universal input 1', 'Supply water temperature'], ['Universal input 2', 'Supply air temperature'], ['Universal input 3', 'Mixed air temperature'], ['Universal input 4', 'Outside air temperature'],
+        ['Universal input 5', 'Current TX (0–50 A)'], ['Universal input 6', 'Condensate overflow N/C'], ['Universal input 7', 'Filter clogged N/O'], ['Universal input 8', 'Generic alarm N/O']],
+      options: [['Relays', 'Fan low speed – ventilation, Fan low, Fan medium, Fan high, Aux heating stage 1, Aux heating stage 2, Cooling water valve, Heating water valve, Fan enable, Occupied enable, F&B damper, DCV damper, Humidifier, Dehumidifier, Externally mapped'],
+        ['Analog outputs', 'Cooling modulating valve, Heating modulating valve, Face & bypass damper, Fan speed, OA optimization damper, DCV damper, Externally mapped'],
+        ['Universal inputs', 'Supply air, chilled water supply, hot water supply, mixed air, outside air temperature; CO₂; filter status N/O & N/C; condensate overflow N/O & N/C; door/window Title 24 N/O & N/C; door/window N/O & N/C; key card N/O & N/C; generic alarm N/O & N/C; voltage input; thermistor input; generic 1–100 kΩ; current TX 0–10/20/30/50/60/100/120/150/200 A; emergency shutoff N/O & N/C; fan run status N/O & N/C; outside air damper feedback; fire alarm status N/O & N/C']] }],
+    features: [
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', behaviour: ['Target min/max inside humidity appear only when a humidifier or dehumidifier is mapped.'] }, 'occupancy',
+      { id: 'zone_switchover', behaviour: ['Switch happens where the opposite loop output becomes > 0; until then the previous operation mode is held.'] },
+      { id: 'cond_modes', behaviour: [
+          'Modes offered follow the mapping: heating + cooling valves (with or without aux) → Auto/Heat/Cool/Off; cooling valve + aux → Auto/Heat/Cool/Off; heating valve only or aux only → Heat/Off; cooling valve only → Cool/Off; nothing → Off.',
+          'Valve opens only when the demand matches the available water (chilled water + cooling, hot water + heating); otherwise valves closed/at minimum, face & bypass fully bypassed, fan off or at minimum (low-ventilation at low).',
+          'Heat only with only chilled water: heating from aux heat. Cool only: aux heat never runs; with heating load and the heating valve open, only the heating valve switches off and F&B/fan go off or to minimum.',
+          'Economizer only with cooling demand in Auto or Cool only; DCV, MAT safety and condensate override always run.'],
+        confirm: ['Cool-only case (b) still refers to "Th2 is less than 65F" from the 2-pipe text.'] },
+      { id: 'fan_off', behaviour: ['Fan Off: water valve and fan relays off, analog outputs at minimum.'] },
+      'sat_control', 'fb_damper',
+      { id: 'sa_tempering', behaviour: [
+          'Heating valve follows the SA tempering loop: relay on when the loop > relayActivationHysteresis; analog between analogOutXAtMinHeatingWaterValve and …Max.',
+          'Zone load wins: with cooling load, neither valve is driven by tempering; with heating load, zone heating takes priority. Not active in Cool only.',
+          'Analog fan runs at Analog at Recirc while tempering; after conditioning the F&B damper holds its position for minFanRuntimePostConditioning.'],
+        confirm: ['4P UV says tempering works when CO₂ is above the threshold and DCV is active; 2P UV says CO₂ below threshold and DCV loop 0.'] },
+      { id: 'valve_onoff', name: 'Cooling and heating valves on/off (relay)', behaviour: ['Cooling valve follows the cooling loop, heating valve the heating loop; uses standaloneRelayActivationHysteresis.'] },
+      { id: 'valve_modulating', name: 'Modulating cooling and heating valves (analog)', behaviour: ['Cooling valve signal follows the cooling loop; heating valve signal follows the heating loop.'],
+        tuners: [['analogOutXAtMinCoolingValve', '2 V'], ['analogOutXAtMaxCoolingValve', '10 V'], ['analogOutXAtMinHeatingValve', '2 V'], ['analogOutXAtMaxHeatingValve', '10 V']] },
+      { id: 'fan_staging', behaviour: ['Only one fan relay is energized at a time. Fan low and Fan low-ventilation cannot both be mapped.'] },
+      { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '2 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '30%'], ['analogOutXAtFanMedium', '60%'], ['analogOutXAtFanHigh', '100%']] },
+      { id: 'fan_modes', behaviour: ['Unoccupied: fan relays operate as in Auto.'] }, 'fan_enable',
+      { id: 'min_fan_runtime', behaviour: ['Applies when conditioning drops to 0, on the occupied → unoccupied transition or from load to deadband within occupied. The stage-down timer starts only after the minimum fan run time.'] },
+      { id: 'aux_heat_2stage', behaviour: ['UV: only one fan relay is energized — aux stage 1 runs Fan medium (or Low if Medium not mapped), stage 2 runs Fan high.'],
+        confirm: ['Text says reheat is used only in cooling mode, while heat-only with chilled water uses aux heat for heating.'] },
+      'economizer',
+      { id: 'oa_min_position', behaviour: ['Staged fan with economizer active: the stage-1 analog value is used for fan control.'] },
+      'dcv_oa',
+      { id: 'mat_safety', behaviour: ['Applies only to the OA modulating damper (analog) and OA damper (relay).'] },
+      'prepurge',
+      { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '2 V'], ['analogOutXAtMaxDCVDamper', '10 V']] },
+      'humidity',
+      { id: 'ui_types', behaviour: [
+          'Adds chilled water and hot water supply temperatures, voltage input, thermistor input, generic 1–100 kΩ, current TX up to 200 A, emergency shutoff, fan run status, fire alarm status, outside-air damper feedback, filter status and condensate overflow.',
+          'HyperStat Split input map (CCU → firmware type) also lists building and duct static pressure (0–1/2/10 in.WC), discharge air temperature, discharge/exhaust fan run, trip and auto/manual status, and high/low differential pressure switches; current TX 0–30/60/100/120/150/200 A and pressure sensors are sent to firmware as generic voltage, status contacts as generic resistance.'],
+        confirm: ['Firmware types for fire alarm N/C, door/window N/O (both types), key card N/O & N/C and supply water temperature are "to be filled in".', 'Universal input 8 (generic alarm) is described with the filter text.'] },
+      { id: 'condensate', behaviour: ['4P UV: overflow switches all relays off and keeps analog outputs at minimum; status updated.'] },
+      'filter_status', 'emergency_shutoff',
+      { id: 'door_window', behaviour: ['Title 24 type keeps mechanical ventilation; the non-Title 24 type resets all loops.'], confirm: ['Resetting loops conflicts with "Keep PI loops when outputs are forced off".'] },
+      'key_card', 'multi_module',
+      { id: 'failsafe_settings', confirm: ['4P UV marks most of the settings list with "?" (OA minimum positions, DCV, economizer); MAT, condensate override and SAT control mode "should be there"; pre-purge optional.'] },
+      { id: 'sensor_bus', behaviour: ['Address 3 (CO₂) is not used in 4P UV; to be added later for all Split profiles.'] },
+      { id: 'display_settings', behaviour: ['Also VOC on the home screen. 4P UV deviations: no space/desired temperature display and no PIN lock (default disabled) — planned for 2P UV.'] },
+      { id: 'default_config', behaviour: ['Outside-air optimization enabling requires mixed air and outside air sensors and an OA damper; F&B vs modulating-valve choice restricts analog options only.'],
+        confirm: ['Relay 7 default is Occupied enable here; the 2-pipe UV document listed Aux heating stage 2 for the 4P UV relay 7.'] }],
+  },
+};
 
 /* Resolve a profile's feature entry: shared feature + profile-specific additions. */
 function profileFeature(entry) {

@@ -66,6 +66,12 @@ UPDATE product_families SET active=0 WHERE id='connect';   -- hide from dropdown
 
 ---
 
+## Control profiles
+
+`src/profiles.js` holds a shared library of reusable control features (behaviour, tuner defaults and "To confirm" points) and the profiles built from it: 2-pipe FCU, 4-pipe FCU, CPU, HPU, 2-pipe and 4-pipe unit ventilator. Selecting a profile in the form opens its section; each feature is Standard / Changed / Not needed. The export (Copy for OneNote or .md) includes the full profile text with changes marked. To add or correct a profile, edit `src/profiles.js` and push.
+
+---
+
 ## ChatGPT plugin (voice / chat interview)
 
 The Worker also serves an MCP endpoint that ChatGPT (or Claude) uses to read the questions and save answers. Answers saved there show up on the web page immediately.
