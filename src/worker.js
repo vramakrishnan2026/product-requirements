@@ -149,13 +149,14 @@ const INTERVIEW_GUIDE = `You are interviewing a product manager to capture a new
 Workflow:
 1. Call get_spec_form first. It lists every question (key, label, type, allowed option values, and showIf conditions). Ask only questions whose showIf conditions are met by answers so far.
 2. Ask whether to start a new requirement or continue one (list_specs / get_spec).
-3. Go section by section in form order. Ask one short question at a time (this often runs in voice). For multi-selects, read out the options briefly. Accept "skip", "not sure" (use tbd where allowed) and move on.
-4. Follow branches: e.g. RS-485 selected -> ask its protocols; Modbus RTU -> ask role; display other than none/LED -> ask size and orientation; reuse plastics = yes -> ask which family, no/tbd -> ask for an enclosure description.
-5. Map spoken answers to the exact option values from get_spec_form. If an answer is ambiguous or doesn't fit (e.g. a thermostat described as a sensor, conflicting numbers), ask a clarifying question; never guess.
-6. Save progress with save_spec after each section (merge=true), so nothing is lost if the call drops. The first save needs overview.title.
-7. When a profile with its own section is selected (e.g. 2-pipe or 4-pipe FCU), call get_profile. Walk through it group by group: give a one-line summary of the group's features and ask "standard, or anything to change or drop?". Record only exceptions: prof.<profile>.<feature> = chg with prof.<profile>.<feature>.notes, or = no. Unanswered features count as Standard. Mention "to confirm" items only if the user asks.
-8. Features that are not in the form go into feat.custom as {name, need: required|nice|no|tbd, notes}.
-9. At the end, read back a short summary, ask for corrections, set status to "submitted" if the user agrees, and give them the page link returned by save_spec.`;
+3. Why and What come right after the overview: ask open questions (why is this needed, for whom, what exists today, markets; what will the product do, for which equipment and applications), then read back a short Why and What in the user's own words and save them as why.text and what.text after they confirm.
+4. Go section by section in form order. Ask one short question at a time (this often runs in voice). For multi-selects, read out the options briefly. Accept "skip", "not sure" (use tbd where allowed) and move on.
+5. Follow branches: e.g. RS-485 selected -> ask its protocols; Modbus RTU -> ask role; display other than none/LED -> ask size and orientation; reuse plastics = yes -> ask which family, no/tbd -> ask for an enclosure description.
+6. Map spoken answers to the exact option values from get_spec_form. If an answer is ambiguous or doesn't fit (e.g. a thermostat described as a sensor, conflicting numbers), ask a clarifying question; never guess.
+7. Save progress with save_spec after each section (merge=true), so nothing is lost if the call drops. The first save needs overview.title.
+8. When a profile with its own section is selected (e.g. 2-pipe or 4-pipe FCU), call get_profile. Walk through it group by group: give a one-line summary of the group's features and ask "standard, or anything to change or drop?". Record only exceptions: prof.<profile>.<feature> = chg with prof.<profile>.<feature>.notes, or = no. Unanswered features count as Standard. Mention "to confirm" items only if the user asks.
+9. Features that are not in the form go into feat.custom as {name, need: required|nice|no|tbd, notes}.
+10. At the end, read back a short summary, ask for corrections, set status to "submitted" if the user agrees, and give them the page link returned by save_spec.`;
 
 const TOOLS = [
   { name: 'get_spec_form',
@@ -331,7 +332,11 @@ async function callTool(name, args, env, url) {
     }
     const fams = await familyOptions(env);
     const rejected = [];
-    for (const [k, v] of Object.entries(answers)) {
+    if (data['overview.problem'] && !data['why.text']) { data['why.text'] = data['overview.problem']; }
+    delete data['overview.problem'];
+    for (const [k0, v] of Object.entries(answers)) {
+      if (k0 === 'overview.problem' && 'why.text' in answers) continue;
+      const k = k0 === 'overview.problem' ? 'why.text' : k0;
       const f = FIELDS[k];
       if (!f) { rejected.push({ key: k, reason: 'unknown field key (see get_spec_form)' }); continue; }
       if (v === null || v === '' || (Array.isArray(v) && !v.length)) { delete data[k]; continue; }

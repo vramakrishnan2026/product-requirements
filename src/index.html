@@ -251,7 +251,7 @@ function fieldHTML(f, d){
     case 'text': input = `<input type="text" id="${id}" data-k="${f.key}" value="${esc(v)}">`; break;
     case 'date': input = `<input type="date" id="${id}" data-k="${f.key}" value="${esc(v)}">`; break;
     case 'number': input = `<input type="number" min="0" step="any" id="${id}" data-k="${f.key}" value="${v ?? ''}">`; break;
-    case 'textarea': input = `<textarea id="${id}" data-k="${f.key}">${esc(v)}</textarea>`; break;
+    case 'textarea': input = `<textarea id="${id}" data-k="${f.key}"${f.rows?` rows="${f.rows}" style="min-height:${f.rows*22}px"`:''}>${esc(v)}</textarea>`; break;
     case 'select': input = `<select id="${id}" data-k="${f.key}"><option value="">—</option>${optionsFor(f).map(o=>`<option value="${esc(o.v)}"${v===o.v?' selected':''}>${esc(o.l)}</option>`).join('')}</select>`; break;
     case 'multi': {
       const arr = Array.isArray(v) ? v : [];
@@ -440,6 +440,11 @@ function buildDoc(){
       if (d[`prof.${s.profile}.other`]){ h(3, 'Other changes or additions'); p(d[`prof.${s.profile}.other`]); }
       continue;
     }
+    if (s.prose){
+      const txt = s.fields.map(f => d[f.key]).filter(Boolean);
+      if (txt.length){ h(2, s.title); txt.forEach(t => String(t).split(/\n\s*\n/).forEach(para => p(para.trim()))); }
+      continue;
+    }
     const lines = [];
     for (const f of s.fields){
       if (!(f.key in d)) continue;
@@ -465,7 +470,7 @@ function toHTML(){
   const body = buildDoc().map(b => {
     if (b.h) return `<h${b.h}>${esc(b.text)}</h${b.h}>`;
     if (b.change) return `<p style="background:#fff4e0;padding:4px 8px"><b>Change:</b> ${esc(b.change)}</p>`;
-    if (b.p) return b.em ? `<p><i>${esc(b.p)}</i></p>` : `<p>${esc(b.p)}</p>`;
+    if (b.p) return b.em ? `<p><i>${esc(b.p)}</i></p>` : `<p>${esc(b.p).replace(/\n/g,'<br>')}</p>`;
     if (b.ul) return `<ul>${b.ul.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
     if (b.table) return `<table style="border-collapse:collapse"><tr>${b.table.head.map(c=>`<th style="${td}background:#eef1f5;text-align:left">${esc(c)}</th>`).join('')}</tr>${b.table.rows.map(r=>`<tr>${r.map(c=>`<td style="${td}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
   }).join('\n');
@@ -508,6 +513,7 @@ async function openSpec(id){
   if (id){
     const r = await api('/api/specs/'+encodeURIComponent(id));
     state.id = r.spec.id; state.data = r.spec.data; state.status = r.spec.status;
+    if (state.data['overview.problem'] && !state.data['why.text']){ state.data['why.text'] = state.data['overview.problem']; delete state.data['overview.problem']; }
     $('#savedAt').textContent = 'Saved ' + fmtDate(r.spec.updated_at);
   } else {
     state.id = null; state.data = {}; state.status = 'draft'; $('#savedAt').textContent = '';

@@ -11,10 +11,19 @@ const SECTIONS = [
     { key:'overview.product_type_other', label:'Describe product type', type:'text', showIf:{k:'overview.product_type', eq:'other'} },
     { key:'overview.kind', label:'Type of request', type:'select', options:O(['new','New product'],['variant','Variant of an existing product'],['firmware_only','New firmware / profile on existing hardware'],['tbd','Not sure yet']) },
     { key:'overview.base_family', label:'Existing product it builds on', type:'select', options:'@families', showIf:{k:'overview.kind', in:['variant','firmware_only']} },
-    { key:'overview.problem', label:'Customer problem / use case', type:'textarea', wide:true, hint:'Who needs it, what job it does, what exists today.' },
     { key:'overview.regions', label:'Target regions', type:'multi', wide:true, options:O(['na','North America'],['eu','Europe'],['uk','UK'],['in','India'],['mea','Middle East & Africa'],['apac','Asia Pacific'],['latam','Latin America']) },
     { key:'overview.volume', label:'Expected annual volume', type:'number', unit:'units' },
     { key:'overview.target_cost', label:'Target BOM cost', type:'number', unit:'USD' },
+  ]},
+
+  { id:'why', title:'Why', prose:true, desc:'The reason for this product.', fields:[
+    { key:'why.text', label:'Why', type:'textarea', wide:true, rows:7,
+      hint:'Customer problem and who has it; what exists today and why it does not fit (cost, power, wiring, features); target markets and applications; business opportunity.' },
+  ]},
+
+  { id:'what', title:'What', prose:true, desc:'What the product will do.', fields:[
+    { key:'what.text', label:'What', type:'textarea', wide:true, rows:7,
+      hint:'What the product is and controls; key capabilities and I/O in a sentence or two; supported equipment / configurations; typical applications.' },
   ]},
 
   { id:'io', title:'Hardware I/O', desc:'Counts per device. Leave 0 if not needed.', fields:[

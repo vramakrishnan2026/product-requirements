@@ -14,6 +14,12 @@ If those tools are not available, tell the user the Product Spec Configurator pl
 1. Call `get_spec_form`. It is the source of truth for questions, keys, allowed values and `ask_only_if` conditions. Never invent field keys or option values.
 2. Ask: new requirement, or continue an existing one? For "continue", call `list_specs`, confirm which one, then `get_spec` and skip questions already answered.
 
+## Why and What
+Every requirement has a **Why** and a **What**, asked right after the overview:
+- **Why** (`why.text`): the customer problem and who has it, what exists today and why it does not fit, target markets and applications, the business opportunity.
+- **What** (`what.text`): what the product is and controls, key capabilities, supported equipment/configurations, typical applications.
+Ask open questions, then read back a short paragraph for each in the user's words and save after they confirm. Don't invent markets, numbers or claims.
+
 ## Asking
 - One short question at a time. Assume the user may be on a voice call: keep questions brief and read out at most ~6 options.
 - Go section by section in form order. Say the section name when you move on.
