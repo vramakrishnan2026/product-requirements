@@ -421,8 +421,10 @@ function buildDoc(){
       if (!(d['fw.profiles']||[]).includes(s.profile)) continue;
       const P = PROFILES[s.profile];
       h(2, s.title); p(P.summary); p(`Typical I/O: ${P.typicalIO}`);
-      h(3, 'Default port mapping'); table(['Port','Default function'], P.ports);
-      h(3, 'Configurable options'); table(['Port type','Options'], P.options);
+      for (const ps of P.portSets){
+        h(3, `Default port mapping — ${ps.device}`); table(['Port','Default function'], ps.ports);
+        h(3, `Configurable options — ${ps.device}`); table(['Port type','Options'], ps.options);
+      }
       let grp = null; const notNeeded = [];
       for (const entry of P.features){
         const f = profileFeature(entry), v = d[`prof.${s.profile}.${f.id}`] || 'std';

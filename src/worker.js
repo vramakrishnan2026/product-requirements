@@ -305,7 +305,7 @@ async function callTool(name, args, env, url) {
   if (name === 'get_profile') {
     const P = PROFILES[args.profile];
     if (!P) return { isError: true, data: { error: `Unknown profile. Available: ${Object.keys(PROFILES).join(', ')}` } };
-    return { data: { profile: args.profile, name: P.name, summary: P.summary, typical_io: P.typicalIO, default_ports: P.ports, options: P.options,
+    return { data: { profile: args.profile, name: P.name, summary: P.summary, typical_io: P.typicalIO, port_sets: P.portSets,
       features: P.features.map(e => { const f = profileFeature(e); return { key: `prof.${args.profile}.${f.id}`, name: f.name, group: f.group, standard_behaviour: f.behaviour, tuner_defaults: f.tuners, to_confirm: f.confirm.length ? f.confirm : undefined }; }) } };
   }
   if (name === 'list_specs') {

@@ -4,11 +4,11 @@
    FEATURES[id] = { name, group, behaviour: [lines], tuners: [[name, default]], confirm: [lines] }
      - behaviour: the standard behaviour, written so other profiles/products can reuse it
      - confirm:   items copied as written from the source that still need a decision
-   PROFILES[id] = { name, summary, typicalIO, ports, options, features: [id | {id, behaviour?, tuners?, confirm?}] }
+   PROFILES[id] = { name, summary, typicalIO, portSets: [{device, ports, options}], features: [id | {id, behaviour?, tuners?, confirm?}] }
      - a feature entry can add profile-specific lines / tuner defaults (merged over the shared feature)
    The profile id must match an option value of fw.profiles in form.js. */
 
-const FEATURE_GROUPS = ['Control & setpoints', 'Modes', 'Water side', 'Fan', 'Electric heat', 'Ventilation', 'Inputs & protection', 'Configuration'];
+const FEATURE_GROUPS = ['Control & setpoints', 'Modes', 'Staged & modulating conditioning', 'Water side', 'Fan', 'Electric heat', 'Ventilation', 'Inputs & protection', 'Configuration'];
 
 const FEATURES = {
   /* ---- Control & setpoints ---- */
@@ -27,8 +27,7 @@ const FEATURES = {
 
   user_intent: { name: 'User intent and setpoint limits', group: 'Control & setpoints',
     behaviour: [
-      'User intent: current temperature, zone cooling and heating target temperatures (affected by the schedule), schedule and vacation as in other zones.'],
-    tuners: [['maxHeatingUserTemp', '72 °F'], ['minHeatingUserTemp', '67 °F'], ['maxCoolingUserTemp', '77 °F'], ['minCoolingUserTemp', '72 °F']] },
+      'User intent: current temperature, zone cooling and heating target temperatures (affected by the schedule), schedule and vacation as in other zones.'] },
 
   occupancy: { name: 'Auto-away and auto forced-occupied', group: 'Control & setpoints',
     behaviour: [
@@ -46,13 +45,27 @@ const FEATURES = {
     behaviour: [
       'User can choose Off / Auto / Heat only / Cool only, limited to what the configuration supports.',
       'Off: normal operation stops; all digital outputs and thermal valves (heating, cooling, fan) are off and analog outputs go to their minimum.',
+      'Heat only: stays in heating operation; no conditioning whenever the current temperature is above the heating desired temperature. Cool only: stays in cooling; no conditioning whenever the current temperature is below the cooling desired temperature.',
       'RE 2020 modes: Comfort (user-defined temperature from zone or device), Economy (setback temperatures), Freeze protection (emergency conditioning), Off.'] },
 
   fan_off: { name: 'Fan mode Off', group: 'Modes',
     behaviour: [
-      'Fan Off from the CCU or portals/apps stops normal operation: digital outputs and thermal valves off, analog outputs at minimum.',
-      'Water sampling continues while the fan is off; air sampling is not done.',
-      'Conditioning / fan mode vs sampling: Off/Off → no water or air sampling; Off/On → air sampling only; On/Off → water sampling only.'] },
+      'Fan Off from the CCU or portals/apps stops normal operation: no conditioning; digital outputs and thermal valves off, analog outputs at minimum.'] },
+
+  /* ---- Staged & modulating conditioning ---- */
+  staged_conditioning: { name: 'Staged cooling and heating (relays)', group: 'Staged & modulating conditioning',
+    behaviour: [
+      'The cooling loop output drives the cooling stage relays and the heating loop output drives the heating stage relays.',
+      '2 stages: stage 1 on when loop > relayActivationHysteresis, off at loop = 0; stage 2 on above 50% + H/2, off at ≤ 50% − H/2.',
+      'Flexible stages: the highest stage mapped sets the number of stages (e.g. only Cooling stage 2 mapped → it turns on above 50% + H).'],
+    tuners: [['relayActivationHysteresis', '10%']] },
+
+  analog_conditioning: { name: 'Modulating cooling and heating signals (analog)', group: 'Staged & modulating conditioning',
+    behaviour: [
+      'Cooling signal modulates between analogOutXAtMinCooling and …Max as the cooling loop goes 0–100%; heating signal likewise with the heating loop.',
+      'Reverse acting is allowed (max may be lower than min).',
+      'Any analog output can be mapped to cooling, heating or fan; parameter names follow the output number.'],
+    tuners: [['analogOutXAtMinCooling', '2 V'], ['analogOutXAtMaxCooling', '10 V'], ['analogOutXAtMinHeating', '2 V'], ['analogOutXAtMaxHeating', '10 V']] },
 
   /* ---- Water side ---- */
   water_mode_detect: { name: 'Heating/cooling detection from supply water', group: 'Water side',
@@ -123,6 +136,19 @@ const FEATURES = {
       'For each mapped speed (Low, Medium, High): Current occupied period (on until the end of the current occupied time, then back to Auto), Occupied period (on during scheduled occupied time every day, back to Auto at the end), All times (always on).',
       'Options offered depend on the speeds mapped; a higher speed can be mapped without lower ones. Analog fan uses analogOutXAtFanLow/Medium/High for the fixed speeds.'] },
 
+  fan_staged_analog: { name: 'Staged fan speed (analog)', group: 'Fan',
+    behaviour: [
+      'An analog output mapped to "staged fan" sends a user-set voltage for each cooling or heating stage that is on, instead of following the fan loop (e.g. to drive a VFD in step with the stages).',
+      'One voltage per configured stage: FanOutAtCoolStage1…n and FanOutAtHeatStage1…n.',
+      'With Fan enable mapped and staged fan configured, the fan runs whenever the fan loop > 0% (not only above relayActivationHysteresis).'],
+    tuners: [['FanOutAtCoolStage1', '7 V'], ['FanOutAtCoolStage2', '10 V'], ['FanOutAtCoolStage3', '10 V'], ['FanOutAtHeatStage1', '7 V'], ['FanOutAtHeatStage2', '10 V'], ['FanOutAtHeatStage3', '10 V']] },
+
+  fan_application: { name: 'Residential vs commercial fan operation', group: 'Fan',
+    behaviour: [
+      'Residential/hotel (no Fan enable relay mapped): fan Auto runs only while a heating or cooling stage runs; Low/High run all the time.',
+      'Commercial (Fan enable mapped): stage-1 fan runs whenever the zone is occupied, or on a call for heating/cooling when unoccupied; the user can force stage-1 fan on all the time.',
+      'Fan Off: no conditioning.'] },
+
   fan_enable: { name: 'Fan enable and occupied enable outputs', group: 'Fan',
     behaviour: [
       'Fan enable: output on whenever the zone is occupied, and also when conditioning during the unoccupied schedule.',
@@ -130,7 +156,7 @@ const FEATURES = {
 
   min_fan_runtime: { name: 'Minimum fan run time after conditioning', group: 'Fan',
     behaviour: [
-      'When a water valve or the electric heat turns off (in occupied, or on the transition to unoccupied), the fan keeps running at the last speed for minFanRuntimePostConditioning; an analog fan runs at Analog at Recirc.',
+      'When conditioning turns off (water valve, electric heat or heating/cooling stages), in occupied or on the transition to unoccupied, the fan keeps running for minFanRuntimePostConditioning so the coil heat is dissipated: relay fan at the last speed; analog fan at Analog at Recirc.',
       'Also applies when the user turns the electric heater off.'],
     tuners: [['minFanRuntimePostConditioning', '5 min']] },
 
@@ -169,9 +195,12 @@ const FEATURES = {
       'Display labels: CO₂ target → "Alert Ovr", CO₂ damper opening rate → "Damp Full opn", CO₂ threshold → "Damp Start opn".'] },
 
   humidity: { name: 'Humidifier / dehumidifier outputs', group: 'Ventilation',
-    behaviour: ['Humidifier and dehumidifier follow the standard humidity logic.'],
-    tuners: [['humidityHysteresis', '5%']],
-    confirm: ['Listed only in some output option lists; behaviour is not described in the profile.'] },
+    behaviour: [
+      'Humidifier: on when zone humidity drops below targetMinInsideHumidity; off once it rises humidityHysteresis above it.',
+      'Dehumidifier: on when zone humidity rises above targetMaxInsideHumidity; off once it drops humidityHysteresis below it.',
+      'When mapped, the target humidity user intent appears on the CCU zone screen and in the facility apps (dehumidifier target not in the occupant app).'],
+    tuners: [['humidityHysteresis', '5%'], ['targetMinInsideHumidity', 'same as system / 25%'], ['targetMaxInsideHumidity', 'same as system / 45%']],
+    confirm: ['Second description in the CPU profile reverses the on/off conditions ("on if humidity crosses over the threshold, off 5% below" for the humidifier, and the opposite for the dehumidifier).'] },
 
   /* ---- Inputs & protection ---- */
   ui_types: { name: 'Universal input types', group: 'Inputs & protection',
@@ -218,7 +247,7 @@ const PROFILES = {
     name: '2-pipe FCU',
     summary: 'One coil supplied with either chilled or hot water by the central plant. The controller decides heating or cooling operation from the supply water temperature (or a changeover sensor) and controls the fan speed and the water valve.',
     typicalIO: 'Relays 3 + 1 (electric heat), thermal valves 2, analog outputs 4, universal inputs 6, sensor option PoR',
-    ports: [['Electric heat', 'Aux heating'], ['Digital out 1', 'Fan low speed'], ['Digital out 2', 'Fan medium speed'], ['Digital out 3', 'Fan high speed'],
+    portSets: [{ device: 'TFCU', ports: [['Electric heat', 'Aux heating'], ['Digital out 1', 'Fan low speed'], ['Digital out 2', 'Fan medium speed'], ['Digital out 3', 'Fan high speed'],
       ['Thermal valve 1', 'Water valve'], ['Thermal valve 2', 'Water valve'], ['Analog out 1', 'Fan speed'], ['Analog out 2', 'Water modulating valve'],
       ['Analog out 3', 'Externally mapped – not used'], ['Analog out 4', 'FA modulating damper'], ['Thermistor input 1', 'Return air temperature (mandatory)'],
       ['Universal input 2', 'Supply air temperature'], ['Universal input 3', 'Supply water temperature (mandatory)'], ['Universal input 4', 'CO₂ sensor / door-window sensor'],
@@ -226,10 +255,13 @@ const PROFILES = {
     options: [
       ['Digital outputs', 'Fan low speed – ventilation, Fan low, Fan medium, Fan high, Water valve, Fan enable, Occupied enable, FA damper, Humidifier, Dehumidifier, Externally mapped'],
       ['Analog outputs', 'Water modulating valve, Fan speed, FA / DCV modulating damper, Externally mapped'],
-      ['Universal inputs', 'Current TX (0–10, 0–20, 0–50 A), Supply water temp, Supply air temp, Return air temp, CO₂, Condensate overflow N/O & N/C, Fresh-air damper feedback, Door/window Title 24 N/O & N/C, Door/window N/O & N/C, Key card N/O & N/C, Generic alarm N/O & N/C, Changeover N/O & N/C']],
+      ['Universal inputs', 'Current TX (0–10, 0–20, 0–50 A), Supply water temp, Supply air temp, Return air temp, CO₂, Condensate overflow N/O & N/C, Fresh-air damper feedback, Door/window Title 24 N/O & N/C, Door/window N/O & N/C, Key card N/O & N/C, Generic alarm N/O & N/C, Changeover N/O & N/C']] },
+      { device: 'MyStat', ports: [['Relay 1', 'Water valve'], ['Relay 2', 'Fan low speed'], ['Relay 3', 'Aux heating'], ['Relay 4', 'Fan high speed'], ['Analog out', 'Modulating water valve'], ['Universal input', 'Supply water temperature (always enabled)']],
+        options: [['Relays', 'Fan low speed, Fan high speed, Water valve, Aux heating, Fan enable, Occupied enable, Humidifier, Dehumidifier, Externally mapped, DCV damper'],
+          ['Analog out', 'Modulating water valve, Fan speed, Externally mapped, DCV damper'], ['Universal input', 'Supply water temperature (always enabled)']] }],
     features: [
-      'zone_load_pi', 'pi_hold', 'user_intent', 'occupancy', 'zone_switchover',
-      'cond_modes', 'fan_off',
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', tuners: [['maxHeatingUserTemp', '72 °F'], ['minHeatingUserTemp', '67 °F'], ['maxCoolingUserTemp', '77 °F'], ['minCoolingUserTemp', '72 °F']] }, 'occupancy', 'zone_switchover',
+      'cond_modes', { id: 'fan_off', behaviour: ['Water sampling continues while the fan is off; air sampling is not done.', 'Conditioning / fan mode vs sampling: Off/Off → no water or air sampling; Off/On → air sampling only; On/Off → water sampling only.'] },
       'water_mode_detect', 'valve_onoff', { id: 'valve_modulating', tuners: [['analogOutXAtMinWaterValve', '0 V'], ['analogOutXAtMaxWaterValve', '10 V']] },
       'thermal_valve_pwm', 'water_sampling', 'air_sampling',
       'fan_staging', { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '0 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '70%'], ['analogOutXAtFanMedium', '80%'], ['analogOutXAtFanHigh', '100%']] },
@@ -237,7 +269,7 @@ const PROFILES = {
       { id: 'analog_recirc', confirm: ['Default written as "4V 2V".'] },
       { id: 'aux_heat', behaviour: ['In heating or cooling operation with Auto fan, the highest mapped fan speed runs while the electric heat is on (High, else Medium, else Low).', 'Electric heat and the water valve relay are off when the fan is off.'] },
       'eh_pwm',
-      'fa_damper', { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '0 V'], ['analogOutXAtMaxDCVDamper', '10 V']] }, 'humidity',
+      'fa_damper', { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '0 V'], ['analogOutXAtMaxDCVDamper', '10 V']] }, { id: 'humidity', confirm: ['Humidity behaviour is taken from the CPU profile; the FCU documents only list the outputs.'] },
       'ui_types', 'condensate', 'door_window', 'key_card', 'priority', 'building_limits',
       'default_config'],
   },
@@ -246,7 +278,7 @@ const PROFILES = {
     name: '4-pipe FCU',
     summary: 'Separate heating and cooling coils, each with its own supply. The controller controls the fan speed and which coil valve opens.',
     typicalIO: 'Relays 3 + 1 (electric heat), thermal valves 2, analog outputs 4, universal inputs 6, sensor option PoR',
-    ports: [['Electric heat', 'Aux heating'], ['Digital out 1', 'Fan low speed'], ['Digital out 2', 'Fan medium speed'], ['Digital out 3', 'Fan high speed'],
+    portSets: [{ device: 'TFCU', ports: [['Electric heat', 'Aux heating'], ['Digital out 1', 'Fan low speed'], ['Digital out 2', 'Fan medium speed'], ['Digital out 3', 'Fan high speed'],
       ['Thermal valve 1', 'Cooling water valve'], ['Thermal valve 2', 'Heating water valve'], ['Analog out 1', 'Fan speed'], ['Analog out 2', 'Cooling modulating valve'],
       ['Analog out 3', 'Heating modulating valve'], ['Analog out 4', 'FA modulating damper'], ['Thermistor input 1', 'Return air temperature (mandatory)'],
       ['Universal input 2', 'Supply air temperature'], ['Universal input 3', 'Supply water temperature'], ['Universal input 4', 'CO₂ sensor / door-window sensor'],
@@ -254,11 +286,14 @@ const PROFILES = {
     options: [
       ['Digital outputs', 'Fan low speed – ventilation, Fan low, Fan medium, Fan high, Water valve, Fan enable, Occupied enable, DCV damper, Externally mapped'],
       ['Analog outputs', 'Water modulating valve, Fan speed, DCV modulating damper, Externally mapped'],
-      ['Universal inputs', 'Current TX (0–10, 0–20, 0–50 A), Supply water temp, Supply air temp, Return air temp, CO₂, Condensate, Fresh-air damper feedback, Door/window Title 24 N/O & N/C, Door/window N/O & N/C, Key card N/O & N/C, Generic alarm N/O & N/C']],
+      ['Universal inputs', 'Current TX (0–10, 0–20, 0–50 A), Supply water temp, Supply air temp, Return air temp, CO₂, Condensate, Fresh-air damper feedback, Door/window Title 24 N/O & N/C, Door/window N/O & N/C, Key card N/O & N/C, Generic alarm N/O & N/C']] },
+      { device: 'MyStat', ports: [['Relay 1', 'Fan low speed'], ['Relay 2', 'Fan high speed'], ['Relay 3', 'Water valve'], ['Relay 4', 'Aux heating'], ['Analog out', 'Modulating water valve'], ['Universal input', 'Supply water temperature']],
+        options: [['Relays', 'Fan low speed, Fan high speed, Water valve, Aux heating, Fan enable, Occupied enable, Humidifier, Dehumidifier, Externally mapped, DCV damper'],
+          ['Analog out', 'Modulating water valve, Fan speed, Externally mapped, DCV damper'], ['Universal input', 'Supply water temperature, Airflow temperature, Generic alarm N/O, Generic alarm N/C, Key card sensor, Door/window sensor']] }],
     features: [
-      'zone_load_pi', 'pi_hold', 'user_intent', 'occupancy',
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', tuners: [['maxHeatingUserTemp', '72 °F'], ['minHeatingUserTemp', '67 °F'], ['maxCoolingUserTemp', '77 °F'], ['minCoolingUserTemp', '72 °F']] }, 'occupancy',
       { id: 'cond_modes', behaviour: ['Modes offered follow the configuration: heating and cooling mapped → Off/Auto/Heat only/Cool only; heating only → Off/Heat only; cooling only → Off/Cool only; cooling + electric heat → all four.'] },
-      'fan_off',
+      { id: 'fan_off', behaviour: ['Water sampling continues while the fan is off; air sampling is not done.', 'Conditioning / fan mode vs sampling: Off/Off → no water or air sampling; Off/On → air sampling only; On/Off → water sampling only.'] },
       { id: 'valve_onoff', name: 'Cooling and heating valves on/off (relay)', behaviour: ['Cooling valve follows the cooling loop output; heating valve follows the heating loop output.', 'Both valves off (analog valves at minimum) when the fan is off.'] },
       { id: 'valve_modulating', name: 'Modulating cooling and heating valves (analog)', behaviour: ['Cooling valve signal follows the cooling loop; heating valve signal follows the heating loop.'],
         tuners: [['analogOutXAtMinCoolingValve', '2 V'], ['analogOutXAtMaxCoolingValve', '10 V'], ['analogOutXAtMinHeatingValve', '2 V'], ['analogOutXAtMaxHeatingValve', '10 V']] },
@@ -272,10 +307,37 @@ const PROFILES = {
           'Electric heat and valves are off when the fan is off.'],
         confirm: ['Worked example says it deactivates "2 °F less than heating desired temp" with the same numbers as 2-pipe.'] },
       { id: 'eh_pwm', behaviour: ['Applies when the 4-pipe unit is configured with the cooling coil only.'] },
-      'fa_damper', { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '2 V'], ['analogOutXAtMaxDCVDamper', '10 V']] }, 'humidity',
+      'fa_damper', { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '2 V'], ['analogOutXAtMaxDCVDamper', '10 V']] }, { id: 'humidity', confirm: ['Humidity behaviour is taken from the CPU profile; the FCU documents only list the outputs.'] },
       { id: 'ui_types', confirm: ['Changeover sensor N/O is mapped 0 = Heating, 1 = Cooling here (opposite of 2-pipe), and changeover is missing from the universal-input option list.'] },
       'condensate', 'door_window', 'key_card', 'priority',
       'default_config'],
+  },
+
+  cpu: {
+    name: 'CPU (conventional package unit)',
+    summary: 'Packaged unit with simple independent cooling and heating stages: up to 2 cooling + 2 heating stages with a single-stage fan, or 1 stage with a 2-speed fan; one analog output for a VFD, valve or modulating cooling/heating. Works as a residential/hotel unit or, with Fan enable mapped, as a commercial unit. Target applications: single-zone staged CAV RTU, single-zone modulating VAV RTU, split units; replacement for 4-wire thermostats (self-powered from the switched load).',
+    typicalIO: '4 relays, 1 analog output, 1 universal input; onboard temperature, humidity and occupancy sensing',
+    portSets: [{ device: 'MyStat', ports: [['Relay 1 (Y1)', 'Cooling stage 1'], ['Relay 2 (Y2)', 'Fan low speed'], ['Relay 3 (G)', 'Heating stage 1'], ['Relay 4 (W1)', 'Fan high speed'], ['Analog out', 'Cooling'], ['Universal input', 'Key card sensor']],
+      options: [['Relays', 'Cooling stage 1, Cooling stage 2, Heating stage 1, Heating stage 2, Fan low speed, Fan high speed, Fan enable, Occupied enable, Humidifier, Dehumidifier, Externally mapped, DCV damper'],
+        ['Analog out', 'Cooling, Heating, Linear fan speed, Staged fan, Externally mapped, DCV damper'],
+        ['Universal input', 'Airflow temperature, Generic alarm N/O, Generic alarm N/C, Key card sensor, Door/window sensor, 75F wireless door sensor']] }],
+    features: [
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', behaviour: ['Target min/max inside humidity appear only when a humidifier or dehumidifier is mapped.'] }, 'occupancy',
+      { id: 'zone_switchover', behaviour: ['Switch from heating to cooling happens where the cooling loop output becomes > 0 as the temperature keeps rising (and vice versa); until then the previous operation mode is held.'] },
+      'cond_modes', 'fan_off',
+      'staged_conditioning', 'analog_conditioning',
+      { id: 'fan_staging', behaviour: ['MyStat CPU has 2 fan speeds (low, high): Low on when fan loop > relayActivationHysteresis, off at 0; High on above 50% + H/2, off at ≤ 50% − H/2.'],
+        confirm: ['Example text refers to "3 stages" and "Fan stage 3 … 66%" although only low/high are offered.'] },
+      { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '2 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '30%'], ['analogOutXAtFanMedium', '60%'], ['analogOutXAtFanHigh', '100%']] },
+      'fan_staged_analog', 'fan_modes', 'fan_application', 'fan_enable',
+      { id: 'min_fan_runtime', behaviour: ['Staged fan config: runs at the stage-1 fan speed; linear (analog) fan: last known value in occupied mode; relay fan: last known speed.'] },
+      { id: 'analog_recirc', behaviour: ['Staged fan config: Analog at Recirc sets the fan speed when the loops are zero / zone in deadband, so the zone still gets recirculation.'] },
+      { id: 'humidity' },
+      'ui_types',
+      { id: 'door_window', behaviour: ['Title 24: mechanical cooling is shut off and the minimum fan speed runs — analog fan at Analog at Min, staged fan at Analog at Recirc, relay fan at the lowest mapped speed.', 'Up to 2 door/window sensors per unit (including the 75F wireless door sensor); only one key card sensor.'],
+        confirm: ['FCU profiles run the analog fan at Analog at Recirc for Title 24; CPU says Analog at Min.'] },
+      'key_card',
+      { id: 'default_config', confirm: ['Onboard sensing is listed as temperature/humidity/occupancy, while another section mentions onboard CO₂ for DCV.', 'Relay terminal labels differ between tables (G/W1 shown as Fan enable/Heating stage 1 in one, Heating stage 1/Fan high in the default list).'] }],
   },
 };
 
