@@ -1,6 +1,7 @@
 # Only needed if you deploy from the command line (npx wrangler deploy).
 # Dashboard-only setup does not use this file.
-name = "product-spec"
+name = "product-requirements"
+workers_dev = true
 main = "dist/worker.js"
 compatibility_date = "2026-11-01"
 

@@ -12,7 +12,7 @@ To check after first sign-in: **D1 → product-spec-db → Console** → `SELECT
 
 **Recommended: deploy from GitHub (redeploys on every push)**
 1. **Workers & Pages → Create → Import a repository**, then connect GitHub and pick `vramakrishnan2026/product-requirements`.
-2. Project name: `product-spec` (must match `name` in `wrangler.toml`).
+2. Project name: `product-requirements` (must match `name` in `wrangler.toml`).
 3. Build command: `node build.mjs` · Deploy command: `npx wrangler deploy`. Leave the root directory as `/`.
 4. Click **Create and deploy**. The D1 binding comes from `wrangler.toml`, so step 3 below is already done; carry on with step 4 (secrets).
 
@@ -34,7 +34,7 @@ To check after first sign-in: **D1 → product-spec-db → Console** → `SELECT
 Changing either value signs everyone out.
 
 ## 5. Open it
-Go to the Worker's URL (`https://product-spec.<your-subdomain>.workers.dev`) and sign in with the password.
+Go to the Worker's URL (`https://product-requirements.<your-subdomain>.workers.dev`) and sign in with the password.
 
 ---
 
