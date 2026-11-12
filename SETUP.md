@@ -10,6 +10,14 @@ Everything below is done in the Cloudflare dashboard. No command line needed.
 3. Check: `SELECT * FROM product_families;` should list 6 placeholder families.
 
 ## 2. Create the Worker
+
+**Recommended: deploy from GitHub (redeploys on every push)**
+1. **Workers & Pages → Create → Import a repository**, then connect GitHub and pick `vramakrishnan2026/product-requirements`.
+2. Project name: `product-spec` (must match `name` in `wrangler.toml`).
+3. Build command: `node build.mjs` · Deploy command: `npx wrangler deploy`. Leave the root directory as `/`.
+4. Click **Create and deploy**. The D1 binding comes from `wrangler.toml`, so step 3 below is already done; carry on with step 4 (secrets).
+
+**Or paste by hand (no GitHub link)**
 1. **Workers & Pages → Create → Create Worker** (start from "Hello World").
 2. Name it `product-spec` and click **Deploy**.
 3. Click **Edit code**, delete everything in `worker.js`, paste the contents of **`dist/worker.js`** and click **Deploy**.
