@@ -7,6 +7,9 @@
 // The page HTML is injected at build time (see build.mjs) as HTML below.
 
 const HTML = "__HTML__";
+const SCHEMA = "__SCHEMA__";
+let schemaReady = null; // creates tables on first request (safe to repeat)
+
 
 const COOKIE = 'psc_session';
 const SESSION_DAYS = 30;
@@ -34,6 +37,8 @@ async function route(req, env) {
 
   if (!env.ACCESS_PASSWORD) return json({ error: 'ACCESS_PASSWORD secret is not set on this Worker' }, 500);
   if (!env.DB) return json({ error: 'D1 binding "DB" is not set on this Worker' }, 500);
+  schemaReady ??= ensureSchema(env).catch(e => { schemaReady = null; throw e; });
+  await schemaReady;
 
   // ---- auth ----
   if (path === '/api/login' && method === 'POST') {
@@ -117,6 +122,13 @@ async function route(req, env) {
 }
 
 // ---------------- helpers ----------------
+// Runs schema.sql (all IF NOT EXISTS / INSERT OR IGNORE) once per Worker instance.
+async function ensureSchema(env) {
+  const stmts = SCHEMA.split('\n').filter(l => !l.trim().startsWith('--')).join('\n')
+    .split(';').map(x => x.trim()).filter(Boolean);
+  await env.DB.batch(stmts.map(sql => env.DB.prepare(sql)));
+}
+
 const STATUSES = ['draft', 'submitted', 'in_review', 'approved', 'archived'];
 
 async function readSpecBody(req) {

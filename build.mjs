@@ -2,7 +2,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const html = readFileSync(new URL('./src/index.html', import.meta.url), 'utf8');
 const js = readFileSync(new URL('./src/worker.js', import.meta.url), 'utf8');
+const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
 if (!js.includes('"__HTML__"')) throw new Error('placeholder missing');
 mkdirSync(new URL('./dist/', import.meta.url), { recursive: true });
-writeFileSync(new URL('./dist/worker.js', import.meta.url), js.replace('"__HTML__"', () => JSON.stringify(html)));
+writeFileSync(new URL('./dist/worker.js', import.meta.url), js.replace('"__HTML__"', () => JSON.stringify(html)).replace('"__SCHEMA__"', () => JSON.stringify(schema)));
 console.log('built dist/worker.js');

@@ -4,10 +4,9 @@ Account: 75fproduct@gmail.com · D1 database: `product-spec-db` (`ac34d9ae-fe01-
 
 Everything below is done in the Cloudflare dashboard. No command line needed.
 
-## 1. Create the tables (once)
-1. **Storage & Databases → D1 → product-spec-db → Console**
-2. Paste the whole of `schema.sql` and click **Execute**.
-3. Check: `SELECT * FROM product_families;` should list 6 placeholder families.
+## 1. Tables
+Nothing to do: the Worker creates its tables in `product-spec-db` on first use (from `schema.sql`, all `IF NOT EXISTS`).
+To check after first sign-in: **D1 → product-spec-db → Console** → `SELECT * FROM product_families;` lists 6 placeholder families.
 
 ## 2. Create the Worker
 
