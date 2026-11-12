@@ -67,6 +67,24 @@ const FEATURES = {
       'Any analog output can be mapped to cooling, heating or fan; parameter names follow the output number.'],
     tuners: [['analogOutXAtMinCooling', '2 V'], ['analogOutXAtMaxCooling', '10 V'], ['analogOutXAtMinHeating', '2 V'], ['analogOutXAtMaxHeating', '10 V']] },
 
+  compressor_staged: { name: 'Compressor stages (relays)', group: 'Staged & modulating conditioning',
+    behaviour: [
+      'Compressor stages serve both cooling and heating; they follow the cooling loop or the heating loop, whichever is active.',
+      'Stage 1 on when the loop > relayActivationHysteresis, off at loop = 0. Stage 2 on above 50% + H/2.'],
+    tuners: [['relayActivationHysteresis', '10%']],
+    confirm: ['Stage 2 turn-off is written as "≤ 50% + H/2" (other profiles use 50% − H/2).', 'Compressor stage 3 is offered but its thresholds are not described.'] },
+
+  compressor_modulating: { name: 'Modulating compressor speed (analog)', group: 'Staged & modulating conditioning',
+    behaviour: [
+      'Compressor signal modulates between analogOutXAtMinCompressor and …Max as the compressor loop goes 0–100%; compressor loop = cooling loop (or heating loop, whichever is active).'],
+    tuners: [['analogOutXAtMinCompressor', '2 V'], ['analogOutXAtMaxCompressor', '10 V']] },
+
+  hp_changeover: { name: 'Heat pump changeover relay (O/B)', group: 'Staged & modulating conditioning',
+    behaviour: [
+      'Type O energizes in cooling (relay on when cooling loop > 0, off in heating); Type B energizes in heating (on when heating loop > 0, off in cooling). Conditioning mode Off → off.',
+      'Any relay can be mapped as changeover; default type is O.',
+      'The only relay mapped as changeover cannot be disabled from the CCU or portals. If it is mapped to more than one relay (e.g. to work around a damaged relay), any of them can be disabled but not all.'] },
+
   /* ---- Water side ---- */
   water_mode_detect: { name: 'Heating/cooling detection from supply water', group: 'Water side',
     behaviour: [
@@ -134,7 +152,8 @@ const FEATURES = {
     behaviour: [
       'Auto: fan runs whenever heating or cooling occurs, following the fan stages / fan loop.',
       'For each mapped speed (Low, Medium, High): Current occupied period (on until the end of the current occupied time, then back to Auto), Occupied period (on during scheduled occupied time every day, back to Auto at the end), All times (always on).',
-      'Options offered depend on the speeds mapped; a higher speed can be mapped without lower ones. Analog fan uses analogOutXAtFanLow/Medium/High for the fixed speeds.'] },
+      'Options offered depend on the speeds mapped; a higher speed can be mapped without lower ones. Analog fan uses analogOutXAtFanLow/Medium/High for the fixed speeds.',
+      'A fan mode other than Auto/Off takes precedence over the PI loop and over aux-heat fan control.'] },
 
   fan_staged_analog: { name: 'Staged fan speed (analog)', group: 'Fan',
     behaviour: [
@@ -183,6 +202,14 @@ const FEATURES = {
       'Fixed fan speeds set the duty cycle: Low = AuxHeatingDutyCycleLow, Medium = …Medium, High = …High of the cycle time.'],
     tuners: [['AuxHeatingCycleTime', '2 min'], ['AuxHeatingDutyCycleLow', '25%'], ['AuxHeatingDutyCycleMedium', '50%'], ['AuxHeatingDutyCycleHigh', '100%']] },
 
+  aux_heat_2stage: { name: 'Two-stage aux heat with fan staging', group: 'Electric heat',
+    behaviour: [
+      'Aux stage 1 on when current temp < heating desired temp − auxHeating1Activate; aux stage 2 on when current temp < heating desired temp − auxHeating2Activate. Each turns off 1 °F closer to the setpoint than its turn-on point (e.g. 3 °F on → 2 °F off).',
+      'Fan Auto: aux stage 1 runs Fan medium (and lower fan relays); aux stage 2 runs Fan high (and lower relays). The analog fan gets the equivalent medium/high value.',
+      'If Medium is not mapped: stage 1 uses the lowest mapped speed; with Low and High mapped, Low runs on stage 1 and High (+ Low) on stage 2. With only one fan relay, both stages use it.',
+      'Once an aux stage is on, the aux logic drives the fan (relay or analog) instead of the PI loop. Fixed fan modes still take precedence.'],
+    tuners: [['auxHeating1Activate', '3 °F'], ['auxHeating2Activate', '4 °F']] },
+
   /* ---- Ventilation ---- */
   fa_damper: { name: 'Fresh-air damper (relay)', group: 'Ventilation',
     behaviour: [
@@ -193,6 +220,12 @@ const FEATURES = {
     behaviour: [
       'Signal modulates between analogOutXAtMinDCVDamper and …Max as zone CO₂ rises above the threshold: DCV loop = (zone CO₂ − threshold) / damper opening rate; 0 when below threshold, unoccupied or pre-conditioning.',
       'Display labels: CO₂ target → "Alert Ovr", CO₂ damper opening rate → "Damp Full opn", CO₂ threshold → "Damp Start opn".'] },
+
+  dcv_relay: { name: 'DCV damper relay', group: 'Ventilation',
+    behaviour: [
+      'A relay mapped to DCV damper turns on when the DCV loop > CO2damperRelayActivationHysteresis and off when the DCV loop falls to 0%.',
+      'The DCV damper relay state is shown in the conditioning status and zone status messages.'],
+    tuners: [['CO2damperRelayActivationHysteresis', '10% (range 0–100%)']] },
 
   humidity: { name: 'Humidifier / dehumidifier outputs', group: 'Ventilation',
     behaviour: [
@@ -236,6 +269,12 @@ const FEATURES = {
     confirm: ['Source text (16 Oct addition) is incomplete.'] },
 
   /* ---- Configuration ---- */
+  temp_offset: { name: 'Temperature offset', group: 'Configuration',
+    behaviour: ['Configurable temperature offset for the onboard sensor, −10 °F to +10 °F.'] },
+
+  output_test: { name: 'Output test from configuration', group: 'Configuration',
+    behaviour: ['Each enabled relay can be forced on, and each analog output set to a test value (0.0–10.0 V), from the configuration screen to check wiring.'] },
+
   default_config: { name: 'Default configuration on pairing', group: 'Configuration',
     behaviour: [
       'On first pairing the CCU loads the default configuration from the .ini file and shows it on the configuration page.',
@@ -326,7 +365,7 @@ const PROFILES = {
       { id: 'zone_switchover', behaviour: ['Switch from heating to cooling happens where the cooling loop output becomes > 0 as the temperature keeps rising (and vice versa); until then the previous operation mode is held.'] },
       'cond_modes', 'fan_off',
       'staged_conditioning', 'analog_conditioning',
-      { id: 'fan_staging', behaviour: ['MyStat CPU has 2 fan speeds (low, high): Low on when fan loop > relayActivationHysteresis, off at 0; High on above 50% + H/2, off at ≤ 50% − H/2.'],
+      { id: 'fan_staging', behaviour: ['HPU/CPU: lower fan relays stay on together with higher ones (stated in the HPU profile).', 'MyStat CPU has 2 fan speeds (low, high): Low on when fan loop > relayActivationHysteresis, off at 0; High on above 50% + H/2, off at ≤ 50% − H/2.'],
         confirm: ['Example text refers to "3 stages" and "Fan stage 3 … 66%" although only low/high are offered.'] },
       { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '2 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '30%'], ['analogOutXAtFanMedium', '60%'], ['analogOutXAtFanHigh', '100%']] },
       'fan_staged_analog', 'fan_modes', 'fan_application', 'fan_enable',
@@ -338,6 +377,38 @@ const PROFILES = {
         confirm: ['FCU profiles run the analog fan at Analog at Recirc for Title 24; CPU says Analog at Min.'] },
       'key_card',
       { id: 'default_config', confirm: ['Onboard sensing is listed as temperature/humidity/occupancy, while another section mentions onboard CO₂ for DCV.', 'Relay terminal labels differ between tables (G/W1 shown as Fan enable/Heating stage 1 in one, Heating stage 1/Fan high in the default list).'] }],
+  },
+
+  hpu: {
+    name: 'HPU (heat pump unit)',
+    summary: 'A compressor provides both cooling and heating; a reversing valve (changeover relay O/B) decides which. An auxiliary heat source such as an electric element is added for when compressor heating is not enough.',
+    typicalIO: 'HyperStat: 6 relays, 3 analog outputs, 2 thermistor inputs, 2 analog inputs; onboard temperature, humidity, CO₂, occupancy, sound and light. MyStat: 4 relays, 1 analog output, 1 universal input',
+    portSets: [
+      { device: 'HyperStat', ports: [['Relay 1 (Y1)', 'Compressor stage 1'], ['Relay 2 (Y2)', 'Compressor stage 2'], ['Relay 3 (G)', 'Fan low speed'], ['Relay 4 (W1)', 'Aux heating stage 1'], ['Relay 5 (W2)', 'Fan medium speed'], ['Relay 6 (O/B)', 'Changeover, type O (energize in cooling)'],
+          ['Analog out 1', 'Compressor speed'], ['Analog out 2', 'Fan speed'], ['Analog out 3', 'DCV damper'], ['Thermistor 1', 'Airflow temperature'], ['Thermistor 2', 'Door/window sensor 1'], ['Analog in 1', 'Key card sensor'], ['Analog in 2', 'Current TX (0–20 A)']],
+        options: [['Relays', 'Compressor stage 1, 2, 3, Aux heating stage 1, 2, Fan low, Fan medium, Fan high, Fan enable, Occupied enable, Humidifier, Dehumidifier, Changeover (type O or B), DCV damper'],
+          ['Analog outputs', 'Compressor speed, Fan speed, DCV damper'], ['Thermistor 2', 'Door/window sensor 1, External 10K room temperature sensor'],
+          ['Analog inputs', 'Current TX (0–10, 0–20, 0–50 A), Key card sensor, Door/window sensor'], ['Other', 'Occupancy sensing enable']] },
+      { device: 'MyStat', ports: [['Relay 1', 'Compressor stage 1'], ['Relay 2', 'Aux heating stage'], ['Relay 3', 'Fan low speed'], ['Relay 4', 'O – energize in cooling'], ['Analog out', 'Compressor speed'], ['Universal input', 'Key card sensor']],
+        options: [['Relays', 'Compressor stage 1, Compressor stage 2, Aux heating stage, O – energize in cooling, B – energize in heating, Fan low speed, Fan high speed, Fan enable, Occupied enable, Humidifier, Dehumidifier, Externally mapped, DCV damper'],
+          ['Analog out', 'Compressor speed, Fan speed, Externally mapped, DCV damper'], ['Universal input', 'Airflow temperature, Generic alarm N/O, Generic alarm N/C, Key card sensor, Door/window sensor']] }],
+    features: [
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', behaviour: ['Target min/max inside humidity appear only when a humidifier or dehumidifier is mapped.'] }, 'occupancy', 'zone_switchover',
+      { id: 'cond_modes', behaviour: ['Change request: with conditioning Off and fan Auto, fan stages still run from the cooling loop (fan loop); a Fan enable relay stays on when occupied and turns on when unoccupied whenever fan loop > 0.'],
+        confirm: ['This change request conflicts with "Off: all outputs off".'] },
+      'fan_off',
+      'compressor_staged', 'compressor_modulating', 'hp_changeover',
+      { id: 'fan_staging', behaviour: ['HPU/CPU: lower fan relays stay on together with higher ones (at 100% loop Low, Medium and High are all on), unlike the FCU profiles where only the highest qualifying stage is on.'] },
+      { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '2 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '70%'], ['analogOutXAtFanMedium', '80%'], ['analogOutXAtFanHigh', '100%']],
+        confirm: ['Acceptance criteria give 30% / 60% / 100% as the defaults.'] },
+      { id: 'fan_modes', behaviour: ['Fixed Medium or High modes also switch on the lower mapped fan relays.'] }, 'fan_enable',
+      'aux_heat_2stage',
+      { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamperPos', '2 V'], ['analogOutXAtMaxDCVDamperPos', '10 V'], ['CO₂ damper opening rate', '10% (0–200%)'], ['CO₂ threshold', '800 ppm (0–2000)'], ['CO₂ target', '1000 ppm (0–2000)']] },
+      'dcv_relay', 'humidity',
+      { id: 'ui_types', behaviour: ['Thermistor 2 can be a door/window sensor or an external 10K room temperature sensor.', 'Up to 2 door/window sensors per unit, numbered by input; only one key card sensor.'] },
+      'door_window', 'key_card',
+      'temp_offset', 'output_test',
+      { id: 'default_config', confirm: ['Acceptance criteria list different relay defaults (Cooling stage 1/2, Heating stage 1, Fan high on relay 5) and an "Aux heating" analog output option (2–10 V) that is not in the main option list.'] }],
   },
 };
 
