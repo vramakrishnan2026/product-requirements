@@ -122,3 +122,24 @@ const SECTIONS = [
     { key:'notes.other', label:'Other notes', type:'textarea', wide:true },
   ]},
 ];
+
+/* ---- Profile sections: one per profile in PROFILES (profiles.js), shown when that profile is selected ---- */
+const FEATURE_CHOICES = [{v:'std', l:'Standard'}, {v:'chg', l:'Changed'}, {v:'no', l:'Not needed'}];
+(function addProfileSections(){
+  const at = SECTIONS.findIndex(s => s.id === 'firmware') + 1;
+  const extra = Object.entries(PROFILES).map(([pid, p]) => {
+    const when = {k:'fw.profiles', has:pid};
+    const fields = [];
+    for (const entry of p.features){
+      const f = profileFeature(entry);
+      fields.push({ key:`prof.${pid}.${f.id}`, label:f.name, type:'feature', options:FEATURE_CHOICES, wide:true,
+        group:f.group, profile:pid, feature:f.id, showIf:when });
+      fields.push({ key:`prof.${pid}.${f.id}.notes`, label:`${f.name}: what changes?`, type:'textarea', wide:true, sub:true,
+        showIf:[when, {k:`prof.${pid}.${f.id}`, eq:'chg'}] });
+    }
+    fields.push({ key:`prof.${pid}.other`, label:`Other ${p.name} changes or additions`, type:'textarea', wide:true, showIf:when });
+    return { id:`profile_${pid}`, title:`Profile: ${p.name}`, profile:pid,
+      desc:`Shown because ${p.name} is selected. Each feature defaults to Standard; mark only what changes or isn't needed.`, fields };
+  });
+  SECTIONS.splice(at, 0, ...extra);
+})();

@@ -153,14 +153,19 @@ Workflow:
 4. Follow branches: e.g. RS-485 selected -> ask its protocols; Modbus RTU -> ask role; display other than none/LED -> ask size and orientation; reuse plastics = yes -> ask which family, no/tbd -> ask for an enclosure description.
 5. Map spoken answers to the exact option values from get_spec_form. If an answer is ambiguous or doesn't fit (e.g. a thermostat described as a sensor, conflicting numbers), ask a clarifying question; never guess.
 6. Save progress with save_spec after each section (merge=true), so nothing is lost if the call drops. The first save needs overview.title.
-7. Features that are not in the form go into feat.custom as {name, need: required|nice|no|tbd, notes}.
-8. At the end, read back a short summary, ask for corrections, set status to "submitted" if the user agrees, and give them the page link returned by save_spec.`;
+7. When a profile with its own section is selected (e.g. 2-pipe or 4-pipe FCU), call get_profile. Walk through it group by group: give a one-line summary of the group's features and ask "standard, or anything to change or drop?". Record only exceptions: prof.<profile>.<feature> = chg with prof.<profile>.<feature>.notes, or = no. Unanswered features count as Standard. Mention "to confirm" items only if the user asks.
+8. Features that are not in the form go into feat.custom as {name, need: required|nice|no|tbd, notes}.
+9. At the end, read back a short summary, ask for corrections, set status to "submitted" if the user agrees, and give them the page link returned by save_spec.`;
 
 const TOOLS = [
   { name: 'get_spec_form',
     description: 'Use this first in every requirements interview. Returns all sections and questions of the product requirement form: field keys, labels, types, allowed option values and showIf conditions (which earlier answers make a question relevant).',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true, title: 'Get requirement form' } },
+  { name: 'get_profile',
+    description: 'Use this when a control profile (e.g. 2-pipe or 4-pipe FCU) is selected, before asking about its features. Returns the profile summary, default port mapping and each reusable feature with its standard behaviour, tuner defaults and open points.',
+    inputSchema: { type: 'object', properties: { profile: { type: 'string', enum: Object.keys(PROFILES), description: 'Profile id as used in fw.profiles' } }, required: ['profile'], additionalProperties: false },
+    annotations: { readOnlyHint: true, title: 'Get profile' } },
   { name: 'list_specs',
     description: 'Use this when the user wants to continue, review or find an existing product requirement. Returns saved requirements (id, title, status, last updated), newest first.',
     inputSchema: { type: 'object', properties: { search: { type: 'string', description: 'Optional text to filter by title or requester' } }, additionalProperties: false },
@@ -263,7 +268,7 @@ function checkValue(f, v, fams) {
       const n = typeof v === 'string' ? Number(v) : v;
       return typeof n === 'number' && isFinite(n) && n >= 0 ? { v: n } : { err: 'expected a number >= 0' };
     }
-    case 'select':
+    case 'select': case 'feature':
       return allowed.includes(v) ? { v } : { err: `expected one of: ${allowed.join(', ')}` };
     case 'multi': {
       const arr = Array.isArray(v) ? v : [v];
@@ -288,10 +293,20 @@ async function callTool(name, args, env, url) {
   const base = `${url.origin}/`;
   if (name === 'get_spec_form') {
     const fams = await familyOptions(env);
-    return { data: { sections: SECTIONS.map(s => ({ id: s.id, title: s.title, note: s.desc || undefined, later_phase: s.phase || undefined,
-      questions: s.fields.map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit, hint: f.hint,
+    return { data: { note: 'Profile sections (Profile: …) list each reusable control feature; values std (default) | chg | no. Call get_profile for the standard behaviour text before discussing a profile.',
+      sections: SECTIONS.map(s => ({ id: s.id, title: s.title, note: s.desc || undefined, later_phase: s.phase || undefined,
+      ask_only_if: s.profile ? `fw.profiles includes ${s.profile}` : undefined,
+      features: s.profile ? s.fields.filter(f => f.type === 'feature').map(f => ({ key: f.key, name: f.label, group: f.group })) : undefined,
+      values: s.profile ? 'std (default) | chg (then set <key>.notes) | no; free text in prof.' + s.profile + '.other' : undefined,
+      questions: s.profile ? undefined : s.fields.map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit, hint: f.hint,
         options: f.options ? optionsOf(f, fams).map(o => ({ value: o.v, label: o.l })) : undefined,
         ask_only_if: f.showIf ? [].concat(f.showIf).map(describeCond).join(' AND ') : undefined })) })) } };
+  }
+  if (name === 'get_profile') {
+    const P = PROFILES[args.profile];
+    if (!P) return { isError: true, data: { error: `Unknown profile. Available: ${Object.keys(PROFILES).join(', ')}` } };
+    return { data: { profile: args.profile, name: P.name, summary: P.summary, typical_io: P.typicalIO, default_ports: P.ports, options: P.options,
+      features: P.features.map(e => { const f = profileFeature(e); return { key: `prof.${args.profile}.${f.id}`, name: f.name, group: f.group, standard_behaviour: f.behaviour, tuner_defaults: f.tuners, to_confirm: f.confirm.length ? f.confirm : undefined }; }) } };
   }
   if (name === 'list_specs') {
     const q = `%${String(args.search || '').toLowerCase()}%`;

@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 const html = readFileSync(new URL('./src/index.html', import.meta.url), 'utf8');
 const js = readFileSync(new URL('./src/worker.js', import.meta.url), 'utf8');
-const form = readFileSync(new URL('./src/form.js', import.meta.url), 'utf8');
+const form = readFileSync(new URL('./src/profiles.js', import.meta.url), 'utf8') + '\n' + readFileSync(new URL('./src/form.js', import.meta.url), 'utf8');
 const schema = readFileSync(new URL('./schema.sql', import.meta.url), 'utf8');
 if (!js.includes('"__HTML__"')) throw new Error('placeholder missing');
 mkdirSync(new URL('./dist/', import.meta.url), { recursive: true });

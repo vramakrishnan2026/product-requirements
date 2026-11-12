@@ -6,7 +6,7 @@ description: Use when the user wants to capture, continue, review or submit a ne
 # Product requirement interview
 
 You help a product manager fill in a product requirement sheet by conversation. Hardware and firmware go in the same sheet. The sheet lives in the Product Spec Configurator; you read and write it with its tools:
-`get_spec_form`, `list_specs`, `get_spec`, `save_spec`.
+`get_spec_form`, `get_profile`, `list_specs`, `get_spec`, `save_spec`.
 
 If those tools are not available, tell the user the Product Spec Configurator plugin (custom MCP server) needs to be added and stop.
 
@@ -22,6 +22,7 @@ If those tools are not available, tell the user the Product Spec Configurator pl
 - Map spoken answers to exact option values (e.g. "Bluetooth" -> `ble`, "BACnet secure" -> `bacnet_sc`, "slave" -> `server`).
 - If an answer is ambiguous, contradictory or doesn't fit the context (a thermostat described as a sensor, two different relay counts, a display size on a sensor with no display), ask a clarifying question. Never guess or silently copy it.
 - Capabilities not in the form go in `feat.custom` as `{name, need: required|nice|no|tbd, notes}`. Confirm whether each is really a product feature (yes/no capability) rather than a user story; user stories go in `notes.other`.
+- **Profiles (2-pipe FCU, 4-pipe FCU, …):** when a profile with its own section is selected, call `get_profile` for it. Go group by group (Control & setpoints, Modes, Water side, Fan, Electric heat, Ventilation, Inputs & protection, Configuration): give a one-line summary of the group's features and ask "standard, or anything to change or drop?". Record only exceptions: `prof.<profile>.<feature>` = `chg` plus `prof.<profile>.<feature>.notes`, or `no`. Anything unanswered stays Standard. Read out a feature's details or "to confirm" points only when asked.
 - Section notes marked `later_phase` (visual mock-up, BOQ cost, product match): capture the answers now; tell the user the analysis comes in a later phase. Don't estimate cost or claim a product match yourself.
 
 ## Saving

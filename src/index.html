@@ -69,6 +69,16 @@
   .seg button{border:0;background:#fff;padding:6px 14px;cursor:pointer;border-right:1px solid var(--line)}
   .seg button:last-child{border-right:0}
   .seg button.on{background:var(--brand);color:#fff}
+  .pf{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+  .pf .lbl{font-weight:560}
+  .pf details{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
+  .pf details summary{cursor:pointer;width:max-content}
+  .pf details ul{margin:6px 0 4px;padding-left:18px}
+  .pf table{border-collapse:collapse;margin:4px 0 6px;font-size:12px}
+  .pf td{border:1px solid var(--line);padding:2px 8px}
+  .pf .confirm{color:var(--warn)}
+  .seg button.dflt{background:var(--brand-soft);color:var(--brand)}
+  .grp{grid-column:1/-1;font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.05em;color:var(--brand);margin-top:12px}
   .feat{display:grid;grid-template-columns:minmax(0,1.3fr) 150px minmax(0,1.5fr) 32px;gap:8px;margin-bottom:8px}
   .feat input,.feat select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
   /* summary */
@@ -130,7 +140,8 @@
         <option value="approved">Approved</option>
         <option value="archived">Archived</option>
       </select>
-      <button class="btn" id="btnExportMd" title="Markdown: paste into an AI chat, OneNote or an email">Export .md</button>
+      <button class="btn" id="btnCopyOneNote" title="Copies the full document with formatting; paste into a OneNote page">Copy for OneNote</button>
+      <button class="btn ghost" id="btnExportMd" title="Markdown file: for AI chats or email">.md</button>
       <button class="btn ghost" id="btnExportJson">JSON</button>
       <button class="btn primary" id="btnSave">Save</button>
     </div>
@@ -202,14 +213,34 @@ function renderForm(){
     <section class="card" id="sec-${s.id}">
       <h2>${esc(s.title)} ${s.phase?`<span class="phase">${esc(s.phase)}</span>`:''}</h2>
       ${s.desc?`<p class="desc">${esc(s.desc)}</p>`:'<div style="height:10px"></div>'}
-      <div class="grid">${s.fields.map(f => fieldHTML(f, d)).join('')}</div>
+      <div class="grid">${sectionFieldsHTML(s, d)}</div>
     </section>`).join('');
   bindForm();
   refreshVisibility();
   renderSummary();
 }
 
+function sectionFieldsHTML(s, d){
+  let html = '', grp = null;
+  for (const f of s.fields){
+    if (f.group && f.group !== grp){ grp = f.group; html += `<div class="grp" data-grp="${esc(s.id)}">${esc(grp)}</div>`; }
+    html += fieldHTML(f, d);
+  }
+  return html;
+}
+function featureDetail(f){
+  const pf = profileFeature(PROFILES[f.profile].features.find(e => (e.id||e) === f.feature));
+  return `<details><summary>Standard behaviour</summary><ul>${pf.behaviour.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>
+    ${pf.tuners.length?`<table>${pf.tuners.map(([n,v])=>`<tr><td>${esc(n)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`:''}
+    ${pf.confirm.length?`<div class="confirm"><b>To confirm:</b><ul>${pf.confirm.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`:''}</details>`;
+}
 function fieldHTML(f, d){
+  if (f.type === 'feature'){
+    const v = d[f.key];
+    return `<div class="f wide pf" data-field="${f.key}"><span class="lbl">${esc(f.label)}</span>
+      <div class="seg" data-seg="${f.key}">${f.options.map(o=>`<button type="button" data-v="${o.v}" class="${v===o.v?'on':(!v&&o.v==='std'?'dflt':'')}">${o.l}</button>`).join('')}</div>
+      ${featureDetail(f)}</div>`;
+  }
   const v = d[f.key];
   const id = 'f_' + f.key.replace(/\W/g,'_');
   const cls = `f${f.wide?' wide':''}${f.sub?' sub':''}`;
@@ -265,7 +296,7 @@ function bindForm(){
     const seg = b.closest('[data-seg]');
     if (seg){
       const k = seg.dataset.seg, nv = state.data[k]===b.dataset.v ? '' : b.dataset.v;
-      seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.v===nv));
+      seg.querySelectorAll('button').forEach(x=>{ x.classList.toggle('on', x.dataset.v===nv); x.classList.toggle('dflt', !nv && x.dataset.v==='std' && FIELD[k]?.type==='feature'); });
       setVal(k, nv);
     } else if (b.dataset.addfeat){
       const k = b.dataset.addfeat; const list = (state.data[k]||[]).slice(); list.push({name:'',need:'required',notes:''});
@@ -303,6 +334,9 @@ function refreshVisibility(){
       if (vis){ total++; if (state.data[f.key] !== undefined) filled++; }
     }
     const n = document.querySelector(`[data-count="${s.id}"]`); if (n) n.textContent = `${filled}/${total}`;
+    document.getElementById('sec-'+s.id)?.classList.toggle('hidden', total === 0);
+    document.querySelector(`#secnav a[href="#sec-${s.id}"]`)?.classList.toggle('hidden', total === 0);
+    document.querySelectorAll(`[data-grp="${s.id}"]`).forEach(g => g.classList.toggle('hidden', total === 0));
   }
   $('#edTitle').textContent = state.data['overview.title'] || 'New requirement';
 }
@@ -325,6 +359,7 @@ function label(k, v){
   const f = FIELD[k]; if (!f) return v;
   const opts = optionsFor(f);
   const one = x => opts.find(o=>o.v===x)?.l ?? (x==='yes'?'Yes':x==='no'?'No':x==='tbd'?'TBD':x);
+  if (f.type==='feature') return one(v);
   return Array.isArray(v) ? v.map(one).join(', ') : one(v);
 }
 function deviceSVG(d){
@@ -359,6 +394,11 @@ function renderSummary(){
     ['Display', d['ui.display'] ? label('ui.display', d['ui.display']) + (d['ui.size']?`, ${d['ui.size']}"`:'') : '—'],
     ['Plastics', d['mech.reuse']==='yes' ? (d['mech.family']?label('mech.family',d['mech.family']):'Reuse (family?)') : d['mech.reuse'] ? label('mech.reuse', d['mech.reuse']) : '—'],
     ['Profiles', d['fw.profiles'] ? label('fw.profiles', d['fw.profiles']) : '—'],
+    ...Object.entries(PROFILES).filter(([pid]) => (d['fw.profiles']||[]).includes(pid)).map(([pid,p]) => {
+      const vals = Object.entries(d).filter(([k]) => k.startsWith(`prof.${pid}.`) && !k.endsWith('.notes') && k !== `prof.${pid}.other`).map(([,v])=>v);
+      const c = vals.filter(v=>v==='chg').length, no = vals.filter(v=>v==='no').length;
+      return [p.name, c||no ? `${c} changed, ${no} not needed` : 'Standard'];
+    }),
     ['Low-code', d['feat.lowcode'] ? label('feat.lowcode', d['feat.lowcode']) : '—'],
     ['Certs', d['cert.list'] ? label('cert.list', d['cert.list']) : '—'],
   ];
@@ -370,20 +410,76 @@ function renderSummary(){
 }
 
 /* ---------- export ---------- */
-function toMarkdown(){
-  const d = prunedData();
-  let md = `# ${d['overview.title'] || 'Untitled requirement'}\n\nStatus: ${state.status}\n`;
+/* Export document model -> Markdown and HTML (HTML pastes into OneNote with formatting). */
+function buildDoc(){
+  const d = prunedData(), B = [];
+  const h = (level, text) => B.push({h:level, text}), p = text => B.push({p:text}), ul = items => items.length && B.push({ul:items}), table = (head, rows) => rows.length && B.push({table:{head, rows}});
+  h(1, d['overview.title'] || 'Untitled requirement');
+  p(`Status: ${($('#status').value||state.status).replace('_',' ')}${d['overview.requested_by']?` · Requested by ${d['overview.requested_by']}`:''} · Exported ${new Date().toLocaleDateString()}`);
   for (const s of SECTIONS){
+    if (s.profile){
+      if (!(d['fw.profiles']||[]).includes(s.profile)) continue;
+      const P = PROFILES[s.profile];
+      h(2, s.title); p(P.summary); p(`Typical I/O: ${P.typicalIO}`);
+      h(3, 'Default port mapping'); table(['Port','Default function'], P.ports);
+      h(3, 'Configurable options'); table(['Port type','Options'], P.options);
+      let grp = null; const notNeeded = [];
+      for (const entry of P.features){
+        const f = profileFeature(entry), v = d[`prof.${s.profile}.${f.id}`] || 'std';
+        if (v === 'no'){ notNeeded.push(f.name); continue; }
+        if (f.group !== grp){ grp = f.group; h(3, grp); }
+        h(4, `${f.name} — ${v==='chg'?'CHANGED':'Standard'}`);
+        if (v === 'chg') B.push({change: d[`prof.${s.profile}.${f.id}.notes`] || '(change not described yet)'});
+        ul(f.behaviour);
+        table(['Tuner / parameter','Default'], f.tuners);
+        if (f.confirm.length){ B.push({p:'To confirm:', em:true}); ul(f.confirm); }
+      }
+      if (notNeeded.length){ h(3, 'Not needed'); ul(notNeeded); }
+      if (d[`prof.${s.profile}.other`]){ h(3, 'Other changes or additions'); p(d[`prof.${s.profile}.other`]); }
+      continue;
+    }
     const lines = [];
     for (const f of s.fields){
       if (!(f.key in d)) continue;
       const v = d[f.key];
-      if (f.type==='features') v.forEach(r => lines.push(`- **${r.name}** — ${({required:'Required',nice:'Nice to have',no:'Not needed',tbd:'TBD'})[r.need]}${r.notes?` (${r.notes})`:''}`));
-      else lines.push(`- **${f.label}${f.unit?` (${f.unit})`:''}:** ${['text','textarea','date','number'].includes(f.type) ? v : label(f.key, v)}`);
+      if (f.type==='features') v.forEach(r => lines.push(`${r.name} — ${({required:'Required',nice:'Nice to have',no:'Not needed',tbd:'TBD'})[r.need]}${r.notes?` (${r.notes})`:''}`));
+      else lines.push(`${f.label}${f.unit?` (${f.unit})`:''}: ${['text','textarea','date','number'].includes(f.type) ? v : label(f.key, v)}`);
     }
-    if (lines.length) md += `\n## ${s.title}\n${lines.join('\n')}\n`;
+    if (lines.length){ h(2, s.title); ul(lines); }
   }
-  return md;
+  return B;
+}
+function toMarkdown(){
+  return buildDoc().map(b => {
+    if (b.h) return `${'#'.repeat(b.h)} ${b.text}`;
+    if (b.change) return `> **Change:** ${b.change}`;
+    if (b.p) return b.em ? `*${b.p}*` : b.p;
+    if (b.ul) return b.ul.map(x => `- ${x}`).join('\n');
+    if (b.table) return [`| ${b.table.head.join(' | ')} |`, `|${b.table.head.map(()=>'---').join('|')}|`, ...b.table.rows.map(r => `| ${r.map(c=>String(c).replace(/\|/g,'\\|')).join(' | ')} |`)].join('\n');
+  }).join('\n\n') + '\n';
+}
+function toHTML(){
+  const td = 'border:1px solid #c4ccd6;padding:3px 8px;vertical-align:top;';
+  const body = buildDoc().map(b => {
+    if (b.h) return `<h${b.h}>${esc(b.text)}</h${b.h}>`;
+    if (b.change) return `<p style="background:#fff4e0;padding:4px 8px"><b>Change:</b> ${esc(b.change)}</p>`;
+    if (b.p) return b.em ? `<p><i>${esc(b.p)}</i></p>` : `<p>${esc(b.p)}</p>`;
+    if (b.ul) return `<ul>${b.ul.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+    if (b.table) return `<table style="border-collapse:collapse"><tr>${b.table.head.map(c=>`<th style="${td}background:#eef1f5;text-align:left">${esc(c)}</th>`).join('')}</tr>${b.table.rows.map(r=>`<tr>${r.map(c=>`<td style="${td}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+  }).join('\n');
+  return `<div style="font-family:Calibri,Segoe UI,sans-serif;font-size:11pt">${body}</div>`;
+}
+async function copyForOneNote(){
+  const html = toHTML(), text = toMarkdown();
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], {type:'text/html'}), 'text/plain': new Blob([text], {type:'text/plain'}) })]);
+    toast('Copied — paste into a OneNote page');
+  } catch {
+    const div = document.createElement('div'); div.innerHTML = html; div.style.position='fixed'; div.style.left='-9999px'; document.body.appendChild(div);
+    const r = document.createRange(); r.selectNodeContents(div); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    const ok = document.execCommand('copy'); sel.removeAllRanges(); div.remove();
+    toast(ok ? 'Copied — paste into a OneNote page' : 'Copy failed — use .md instead');
+  }
 }
 function download(name, text, type){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
@@ -445,6 +541,7 @@ $('#status').onchange = () => { state.dirty = true; $('#savedAt').textContent = 
 $('#search').oninput = drawList;
 $('#listWrap').onclick = e => { const tr = e.target.closest('tr.row'); if (tr) openSpec(tr.dataset.id); };
 const fileName = () => (prunedData()['overview.title']||'requirement').replace(/[^\w-]+/g,'_');
+$('#btnCopyOneNote').onclick = () => copyForOneNote();
 $('#btnExportMd').onclick = () => download(fileName()+'.md', toMarkdown(), 'text/markdown');
 $('#btnExportJson').onclick = () => download(fileName()+'.json', JSON.stringify({status:$('#status').value, data:prunedData()}, null, 2), 'application/json');
 function confirmLeave(){ return window.confirm('You have unsaved changes. Leave without saving?'); }
