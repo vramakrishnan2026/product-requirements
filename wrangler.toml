@@ -1,5 +1,5 @@
-# Only needed if you deploy from the command line (npx wrangler deploy).
-# Dashboard-only setup does not use this file.
+# Used by Cloudflare Workers Builds (GitHub deploys) and by `npx wrangler deploy`.
+# `name` must match the Worker name in the Cloudflare dashboard.
 name = "product-requirements"
 workers_dev = true
 main = "dist/worker.js"
