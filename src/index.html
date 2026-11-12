@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product Spec Configurator</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --panel:#fff; --ink:#18212f; --muted:#5d6b7e; --line:#dde3ea;
+    --brand:#0b4ea2; --brand-ink:#fff; --brand-soft:#e8f0fb; --warn:#9a5b00; --warn-soft:#fff4e0;
+    --ok:#1d7a46; --ok-soft:#e6f5ec; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  button,input,select,textarea{font:inherit;color:inherit}
+  header{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  header h1{font-size:16px;margin:0;font-weight:650}
+  header .sp{flex:1}
+  .btn{border:1px solid var(--line);background:var(--panel);padding:7px 12px;border-radius:8px;cursor:pointer}
+  .btn:hover{border-color:#b9c3cf}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .btn.primary:hover{filter:brightness(1.08)}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn.danger{color:#b42318}
+  .hidden{display:none!important}
+  main{max-width:1320px;margin:0 auto;padding:20px}
+  /* login */
+  .login{max-width:360px;margin:12vh auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+  .login h2{margin:0 0 4px;font-size:18px}
+  .login p{margin:0 0 18px;color:var(--muted)}
+  .login input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+  .err{color:#b42318;min-height:20px;font-size:13px}
+  /* list */
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+  .toolbar input{flex:1;max-width:360px;padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+  table.list{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  table.list th,table.list td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  table.list th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);background:#fafbfc}
+  table.list tr.row{cursor:pointer}
+  table.list tr.row:hover td{background:var(--brand-soft)}
+  .empty{padding:40px;text-align:center;color:var(--muted);background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;background:#eef1f5;color:var(--muted)}
+  .pill.submitted,.pill.in_review{background:var(--warn-soft);color:var(--warn)}
+  .pill.approved{background:var(--ok-soft);color:var(--ok)}
+  /* editor */
+  .editor{display:grid;grid-template-columns:200px minmax(0,1fr) 300px;gap:20px;align-items:start}
+  nav.secnav{position:sticky;top:70px;display:flex;flex-direction:column;gap:2px}
+  nav.secnav a{padding:6px 10px;border-radius:7px;color:var(--muted);text-decoration:none;font-size:13px;display:flex;justify-content:space-between;gap:6px}
+  nav.secnav a:hover{background:var(--panel);color:var(--ink)}
+  nav.secnav a .n{font-size:11px;color:#9aa6b4}
+  section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;scroll-margin-top:70px}
+  section.card h2{font-size:15px;margin:0 0 2px;display:flex;align-items:center;gap:8px}
+  section.card .desc{color:var(--muted);margin:0 0 14px;font-size:13px}
+  .phase{font-size:11px;font-weight:600;padding:2px 7px;border-radius:99px;background:var(--warn-soft);color:var(--warn)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
+  .f{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .f.wide{grid-column:1/-1}
+  .f.sub{border-left:3px solid var(--brand-soft);padding-left:12px}
+  .f label.lbl{font-weight:560;font-size:13px}
+  .f .hint{color:var(--muted);font-size:12px}
+  .f input[type=text],.f input[type=number],.f input[type=date],.f select,.f textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .f textarea{min-height:68px;resize:vertical}
+  .f input:focus,.f select:focus,.f textarea:focus{outline:2px solid var(--brand-soft);border-color:var(--brand)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips label{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:99px;padding:5px 11px;cursor:pointer;user-select:none;font-size:13px;background:#fff}
+  .chips input{margin:0;accent-color:var(--brand)}
+  .chips label.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;width:max-content}
+  .seg button{border:0;background:#fff;padding:6px 14px;cursor:pointer;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--brand);color:#fff}
+  .feat{display:grid;grid-template-columns:minmax(0,1.3fr) 150px minmax(0,1.5fr) 32px;gap:8px;margin-bottom:8px}
+  .feat input,.feat select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+  /* summary */
+  aside.summary{position:sticky;top:70px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;max-height:calc(100vh - 90px);overflow:auto}
+  aside.summary h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;margin-bottom:14px}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:520;word-break:break-word}
+  .device{display:flex;justify-content:center;margin:6px 0 14px}
+  .topbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .topbar .title{font-size:18px;font-weight:650;flex:1;min-width:200px}
+  .topbar select{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .saved{color:var(--muted);font-size:12px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#18212f;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  @media (max-width:1100px){.editor{grid-template-columns:minmax(0,1fr)} nav.secnav,aside.summary{position:static;max-height:none} nav.secnav{flex-direction:row;flex-wrap:wrap}}
+  @media (max-width:640px){.grid{grid-template-columns:1fr} .feat{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Product Spec Configurator</h1>
+  <span class="pill">Phase 1 · POC</span>
+  <span class="sp"></span>
+  <button class="btn ghost hidden" id="btnLogout">Sign out</button>
+</header>
+
+<main>
+  <!-- Login -->
+  <div class="login hidden" id="viewLogin">
+    <h2>Sign in</h2>
+    <p>Enter the shared access password.</p>
+    <form id="loginForm">
+      <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+      <div class="err" id="loginErr"></div>
+      <button class="btn primary" style="width:100%">Continue</button>
+    </form>
+  </div>
+
+  <!-- List -->
+  <div class="hidden" id="viewList">
+    <div class="toolbar">
+      <input id="search" placeholder="Search requirements…">
+      <span class="sp" style="flex:1"></span>
+      <button class="btn primary" id="btnNew">+ New requirement</button>
+    </div>
+    <div id="listWrap"></div>
+  </div>
+
+  <!-- Editor -->
+  <div class="hidden" id="viewEdit">
+    <div class="topbar">
+      <button class="btn" id="btnBack">← All requirements</button>
+      <div class="title" id="edTitle">New requirement</div>
+      <span class="saved" id="savedAt"></span>
+      <select id="status" title="Status">
+        <option value="draft">Draft</option>
+        <option value="submitted">Submitted</option>
+        <option value="in_review">In review</option>
+        <option value="approved">Approved</option>
+        <option value="archived">Archived</option>
+      </select>
+      <button class="btn" id="btnExportMd" title="Markdown: paste into an AI chat, OneNote or an email">Export .md</button>
+      <button class="btn ghost" id="btnExportJson">JSON</button>
+      <button class="btn primary" id="btnSave">Save</button>
+    </div>
+    <div class="editor">
+      <nav class="secnav" id="secnav"></nav>
+      <div id="form"></div>
+      <aside class="summary" id="summary"></aside>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   FORM DEFINITION
+   Every question lives here. To add a question, add a field object;
+   no database change is needed (answers are stored as JSON and
+   flattened automatically for matching).
+
+   field: { key, label, type, options, hint, wide, showIf, unit }
+   types: text | textarea | number | date | select | multi | yesno | ynt | features
+   showIf: { k:'other.key', eq:'x' } | { k, in:[..] } | { k, has:'x' } | { k, gt:0 }
+           or an array of those (all must hold)
+   options:'@families' pulls the product-family list from the database.
+   ===================================================================== */
+const O = (...pairs) => pairs.map(p => Array.isArray(p) ? {v:p[0], l:p[1]} : {v:p, l:p});
+
+const SECTIONS = [
+  { id:'overview', title:'Overview', desc:'What is being asked for, and why.', fields:[
+    { key:'overview.title', label:'Requirement / product name', type:'text', wide:true, hint:'Working name is fine.' },
+    { key:'overview.requested_by', label:'Requested by', type:'text' },
+    { key:'overview.date_needed', label:'Needed by', type:'date' },
+    { key:'overview.product_type', label:'Product type', type:'select', options:O(['thermostat','Thermostat'],['sensor','Sensor'],['controller','Controller'],['io_module','I/O expansion module'],['gateway','Gateway'],['other','Other']) },
+    { key:'overview.product_type_other', label:'Describe product type', type:'text', showIf:{k:'overview.product_type', eq:'other'} },
+    { key:'overview.kind', label:'Type of request', type:'select', options:O(['new','New product'],['variant','Variant of an existing product'],['firmware_only','New firmware / profile on existing hardware'],['tbd','Not sure yet']) },
+    { key:'overview.base_family', label:'Existing product it builds on', type:'select', options:'@families', showIf:{k:'overview.kind', in:['variant','firmware_only']} },
+    { key:'overview.problem', label:'Customer problem / use case', type:'textarea', wide:true, hint:'Who needs it, what job it does, what exists today.' },
+    { key:'overview.regions', label:'Target regions', type:'multi', wide:true, options:O(['na','North America'],['eu','Europe'],['uk','UK'],['in','India'],['mea','Middle East & Africa'],['apac','Asia Pacific'],['latam','Latin America']) },
+    { key:'overview.volume', label:'Expected annual volume', type:'number', unit:'units' },
+    { key:'overview.target_cost', label:'Target BOM cost', type:'number', unit:'USD' },
+  ]},
+
+  { id:'io', title:'Hardware I/O', desc:'Counts per device. Leave 0 if not needed.', fields:[
+    { key:'io.relays', label:'Relay outputs', type:'number', unit:'qty' },
+    { key:'io.relay_rating', label:'Relay rating', type:'text', hint:'e.g. 2 A @ 24 VAC', showIf:{k:'io.relays', gt:0} },
+    { key:'io.analog_outputs', label:'Analog outputs', type:'number', unit:'qty' },
+    { key:'io.ao_types', label:'Analog output signal types', type:'multi', options:O(['0-10v','0–10 V'],['2-10v','2–10 V'],['4-20ma','4–20 mA'],['pwm','PWM']), showIf:{k:'io.analog_outputs', gt:0} },
+    { key:'io.analog_inputs', label:'Analog inputs', type:'number', unit:'qty' },
+    { key:'io.ai_types', label:'Analog input signal types', type:'multi', options:O(['0-10v','0–10 V'],['4-20ma','4–20 mA'],['thermistor','Thermistor'],['rtd','RTD']), showIf:{k:'io.analog_inputs', gt:0} },
+    { key:'io.universal_inputs', label:'Universal inputs', type:'number', unit:'qty' },
+    { key:'io.ui_types', label:'Universal input combinations supported', type:'multi', options:O(['thermistor_10k','10K thermistor'],['0-10v','0–10 V'],['4-20ma','4–20 mA'],['dry_contact','Dry contact'],['pulse','Pulse / counter'],['resistance','Resistance']), showIf:{k:'io.universal_inputs', gt:0} },
+    { key:'io.digital_inputs', label:'Digital / binary inputs', type:'number', unit:'qty' },
+    { key:'io.power', label:'Power supply', type:'multi', options:O(['24vac','24 VAC'],['24vdc','24 VDC'],['line','Line voltage'],['poe','PoE'],['battery','Battery']) },
+    { key:'io.other', label:'Other I/O or notes', type:'textarea', wide:true },
+  ]},
+
+  { id:'sensing', title:'On-board sensing', desc:'Sensors built into the device.', fields:[
+    { key:'sensing.onboard', label:'On-board sensors', type:'multi', wide:true, options:O(['temp','Temperature'],['humidity','Humidity'],['co2','CO₂'],['voc','VOC'],['pm','PM2.5'],['pir','PIR / occupancy'],['light','Ambient light'],['sound','Sound'],['pressure','Pressure']) },
+    { key:'sensing.external', label:'External / remote sensors to support', type:'textarea', wide:true },
+  ]},
+
+  { id:'comms', title:'Communication & protocols', desc:'Pick interfaces first; protocol questions open under each one.', fields:[
+    { key:'comms.interfaces', label:'Communication interfaces', type:'multi', wide:true, options:O(['rs485','RS-485'],['ethernet','Ethernet'],['rf','RF'],['ble','Bluetooth LE'],['nfc','NFC'],['wifi','Wi-Fi'],['usb','USB'],['other','Other']) },
+
+    { key:'comms.rs485.ports', label:'RS-485 · number of ports', type:'number', sub:true, showIf:{k:'comms.interfaces', has:'rs485'} },
+    { key:'comms.rs485.protocols', label:'RS-485 · protocols', type:'multi', sub:true, options:O(['modbus_rtu','Modbus RTU'],['bacnet_mstp','BACnet MS/TP'],['other','Other']), showIf:{k:'comms.interfaces', has:'rs485'} },
+    { key:'comms.rs485.modbus_role', label:'Modbus RTU · role', type:'select', sub:true, options:O(['client','Client (master)'],['server','Server (slave)'],['both','Both']), showIf:[{k:'comms.interfaces', has:'rs485'},{k:'comms.rs485.protocols', has:'modbus_rtu'}] },
+    { key:'comms.rs485.other', label:'RS-485 · other protocol', type:'text', sub:true, showIf:[{k:'comms.interfaces', has:'rs485'},{k:'comms.rs485.protocols', has:'other'}] },
+
+    { key:'comms.ethernet.protocols', label:'Ethernet · protocols', type:'multi', sub:true, options:O(['modbus_tcp','Modbus TCP/IP'],['bacnet_ip','BACnet/IP'],['bacnet_sc','BACnet/SC (secure)'],['other','Other']), showIf:{k:'comms.interfaces', has:'ethernet'} },
+    { key:'comms.ethernet.ports', label:'Ethernet · number of ports', type:'number', sub:true, showIf:{k:'comms.interfaces', has:'ethernet'} },
+    { key:'comms.ethernet.other', label:'Ethernet · other protocol', type:'text', sub:true, showIf:[{k:'comms.interfaces', has:'ethernet'},{k:'comms.ethernet.protocols', has:'other'}] },
+
+    { key:'comms.rf.links', label:'RF · connects to', type:'multi', sub:true, options:O(['ccu','CCU'],['peer','Other field devices'],['sensors','Wireless sensors'],['tbd','TBD']), showIf:{k:'comms.interfaces', has:'rf'} },
+    { key:'comms.rf.notes', label:'RF · band / stack notes', type:'text', sub:true, showIf:{k:'comms.interfaces', has:'rf'} },
+
+    { key:'comms.ble.uses', label:'BLE · used for', type:'multi', sub:true, options:O(['commissioning','Commissioning / setup app'],['config','Configuration'],['ota','Firmware update (OTA)'],['sensor','Sensor link'],['external','Interface to external systems']), showIf:{k:'comms.interfaces', has:'ble'} },
+    { key:'comms.ble.encryption', label:'BLE · encrypted link to the outside world?', type:'ynt', sub:true, showIf:{k:'comms.interfaces', has:'ble'} },
+
+    { key:'comms.nfc.uses', label:'NFC · used for', type:'multi', sub:true, options:O(['commissioning','Commissioning / setup'],['config','Configuration'],['identify','Tap to identify']), showIf:{k:'comms.interfaces', has:'nfc'} },
+
+    { key:'comms.wifi.protocols', label:'Wi-Fi · protocols', type:'multi', sub:true, options:O(['modbus_tcp','Modbus TCP/IP'],['bacnet_ip','BACnet/IP'],['bacnet_sc','BACnet/SC (secure)'],['mqtt','MQTT'],['other','Other']), showIf:{k:'comms.interfaces', has:'wifi'} },
+
+    { key:'comms.usb.uses', label:'USB · used for', type:'multi', sub:true, options:O(['service','Service / debug'],['ota','Firmware update'],['power','Power']), showIf:{k:'comms.interfaces', has:'usb'} },
+    { key:'comms.other', label:'Other interface', type:'text', sub:true, showIf:{k:'comms.interfaces', has:'other'} },
+  ]},
+
+  { id:'display', title:'Display & user interface', desc:'Sensors usually have no display — pick "None" if so.', fields:[
+    { key:'ui.display', label:'Display type', type:'select', options:O(['none','None'],['led','LED indicators only'],['segment','Segment LCD'],['tft','TFT LCD'],['oled','OLED'],['epaper','E-paper'],['tbd','TBD']) },
+    { key:'ui.size', label:'Preferred display size', type:'number', unit:'inches', showIf:{k:'ui.display', in:['segment','tft','oled','epaper']} },
+    { key:'ui.orientation', label:'Orientation', type:'select', options:O(['portrait','Portrait'],['landscape','Landscape'],['square','Square / round'],['tbd','TBD']), showIf:{k:'ui.display', in:['segment','tft','oled','epaper']} },
+    { key:'ui.input', label:'User input', type:'multi', options:O(['touchscreen','Touchscreen'],['cap_buttons','Capacitive buttons'],['buttons','Physical buttons'],['knob','Rotary knob'],['none','None']) },
+    { key:'ui.notes', label:'Screen / UX notes', type:'textarea', wide:true, hint:'Key screens, branding, languages, units.' },
+  ]},
+
+  { id:'mech', title:'Form factor & mechanical', desc:'Reuse existing plastics where possible.', fields:[
+    { key:'mech.reuse', label:'Reuse an existing product family\'s plastics?', type:'ynt' },
+    { key:'mech.family', label:'Product family to reuse', type:'select', options:'@families', showIf:{k:'mech.reuse', eq:'yes'} },
+    { key:'mech.enclosure', label:'Describe enclosure requirements', type:'textarea', wide:true, hint:'Size, shape, look — anything known so far.', showIf:{k:'mech.reuse', in:['no','tbd']} },
+    { key:'mech.mounting', label:'Mounting', type:'multi', wide:true, options:O(['wall_box','Wall (back box)'],['wall_surface','Wall (surface)'],['din','DIN rail'],['duct','Duct'],['ceiling','Ceiling'],['panel','Panel / enclosure'],['other','Other']) },
+    { key:'mech.dimensions', label:'Max dimensions', type:'text', hint:'W × H × D mm' },
+    { key:'mech.ip', label:'Ingress protection', type:'text', hint:'e.g. IP20, IP54' },
+    { key:'mech.cad', label:'Mechanical / CAD file link', type:'text', wide:true, hint:'Link to the mechanical model, used later for the visual mock-up.' },
+  ]},
+
+  { id:'cert', title:'Certification & compliance', desc:'', fields:[
+    { key:'cert.list', label:'Certifications required', type:'multi', wide:true, options:O(['ul','UL'],['fcc','FCC'],['ic','ISED (Canada)'],['ce','CE'],['ukca','UKCA'],['btl','BTL (BACnet)'],['rohs','RoHS'],['reach','REACH'],['bis','BIS (India)'],['tbd','TBD']) },
+    { key:'cert.other', label:'Other certifications / standards', type:'text', wide:true },
+  ]},
+
+  { id:'firmware', title:'Firmware: operation & profiles', desc:'Hardware and firmware are captured together in this one sheet.', fields:[
+    { key:'fw.operation', label:'Operating mode', type:'multi', wide:true, options:O(['standalone','Standalone application'],['ccu','Connected to CCU'],['failsafe','Failsafe-only standalone (when CCU is lost)'],['bms','Integrated with BMS']) },
+    { key:'fw.profiles', label:'Profiles to support', type:'multi', wide:true, options:O(['2pipe','2-pipe FCU'],['4pipe','4-pipe FCU'],['cpu','Conventional package unit'],['hpu','Heat pump unit'],['vav','VAV'],['monitor','Monitoring only'],['other','Other']) },
+    { key:'fw.profiles_other', label:'Other profiles', type:'text', wide:true, showIf:{k:'fw.profiles', has:'other'} },
+    { key:'fw.profile_std', label:'Standard profiles, or exceptions needed?', type:'select', options:O(['standard','Standard as-is'],['exceptions','Exceptions needed'],['tbd','TBD']) },
+    { key:'fw.profile_exceptions', label:'Describe the exceptions', type:'textarea', wide:true, showIf:{k:'fw.profile_std', eq:'exceptions'} },
+  ]},
+
+  { id:'features', title:'Firmware: features', desc:'Yes/no for each capability. Add more rows below as features are agreed.', fields:[
+    { key:'feat.scheduling', label:'Scheduling', type:'multi', wide:true, options:O(['none','Not needed'],['standalone','Standalone (on device)'],['ccu','Via CCU'],['bacnet','Via BACnet']) },
+    { key:'feat.ota', label:'Firmware update (OTA)', type:'multi', wide:true, options:O(['none','Not needed'],['rf','Via RF'],['ble','Via Bluetooth'],['ip','Via Ethernet / IP'],['usb','Via USB / local']) },
+    { key:'feat.lowcode', label:'Low-code (Site Sequencer) support', type:'ynt' },
+    { key:'feat.lowcode_notes', label:'Low-code notes', type:'text', showIf:{k:'feat.lowcode', eq:'yes'} },
+    { key:'feat.custom', label:'Additional features', type:'features', wide:true, hint:'Name each capability and whether it is required.' },
+  ]},
+
+  { id:'mockup', title:'Visual mock-up', phase:'Preview later phase', desc:'Captured now; a rendered virtual product from this spec plus the mechanical file comes in a later phase.', fields:[
+    { key:'mock.wanted', label:'Generate a visual mock-up from this spec?', type:'ynt' },
+    { key:'mock.refs', label:'Reference images / links', type:'textarea', wide:true },
+  ]},
+
+  { id:'boq', title:'BOQ & cost estimate', phase:'Costing later phase', desc:'Once the BOQ list is loaded, the tool will estimate cost and list the parts each requirement pulls in.', fields:[
+    { key:'boq.wanted', label:'Estimate cost from the BOQ?', type:'ynt' },
+    { key:'boq.detail', label:'Level of detail', type:'select', options:O(['summary','Summary (approx. cost + key parts)'],['detailed','Detailed breakdown']), showIf:{k:'boq.wanted', eq:'yes'} },
+    { key:'boq.notes', label:'Costing notes', type:'textarea', wide:true, hint:'Known parts, preferred suppliers, cost constraints.' },
+  ]},
+
+  { id:'mapping', title:'Existing product match', phase:'Matching phase 2', desc:'Phase 2 will compare this spec with existing products and say whether one already fits (with extra profile engineering) or a new product is needed.', fields:[
+    { key:'map.similar', label:'Products you think are close', type:'multi', wide:true, options:'@families' },
+    { key:'map.notes', label:'Why existing products don\'t fit', type:'textarea', wide:true },
+  ]},
+
+  { id:'notes', title:'Open questions & notes', desc:'', fields:[
+    { key:'notes.open', label:'Open questions', type:'textarea', wide:true },
+    { key:'notes.other', label:'Other notes', type:'textarea', wide:true },
+  ]},
+];
+
+/* ===================================================================== */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let FAMILIES = [];
+let state = { id:null, data:{}, status:'draft', dirty:false, specs:[] };
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2200); }
+
+async function api(path, opts={}){
+  const r = await fetch(path, { ...opts, headers:{'content-type':'application/json', ...(opts.headers||{})}, credentials:'same-origin' });
+  if (r.status === 401){ show('login'); throw new Error('unauthorized'); }
+  const body = r.headers.get('content-type')?.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(body?.error || r.statusText);
+  return body;
+}
+
+function show(view){
+  for (const v of ['Login','List','Edit']) $('#view'+v).classList.toggle('hidden', v.toLowerCase()!==view);
+  $('#btnLogout').classList.toggle('hidden', view==='login');
+}
+
+/* ---------- options & visibility ---------- */
+function optionsFor(f){
+  if (f.options === '@families') return [...FAMILIES.map(x=>({v:x.id,l:x.name})), {v:'tbd',l:'TBD'}];
+  return f.options || [];
+}
+function cond(c, d){
+  const v = d[c.k];
+  if ('eq' in c) return v === c.eq;
+  if ('in' in c) return c.in.includes(v);
+  if ('has' in c) return Array.isArray(v) && v.includes(c.has);
+  if ('gt' in c) return Number(v) > c.gt;
+  return true;
+}
+function visible(f, d){ if (!f.showIf) return true; return [].concat(f.showIf).every(c => cond(c, d)); }
+
+/* ---------- render form ---------- */
+function renderForm(){
+  const d = state.data;
+  $('#secnav').innerHTML = SECTIONS.map(s => `<a href="#sec-${s.id}">${esc(s.title)}<span class="n" data-count="${s.id}"></span></a>`).join('');
+  $('#form').innerHTML = SECTIONS.map(s => `
+    <section class="card" id="sec-${s.id}">
+      <h2>${esc(s.title)} ${s.phase?`<span class="phase">${esc(s.phase)}</span>`:''}</h2>
+      ${s.desc?`<p class="desc">${esc(s.desc)}</p>`:'<div style="height:10px"></div>'}
+      <div class="grid">${s.fields.map(f => fieldHTML(f, d)).join('')}</div>
+    </section>`).join('');
+  bindForm();
+  refreshVisibility();
+  renderSummary();
+}
+
+function fieldHTML(f, d){
+  const v = d[f.key];
+  const id = 'f_' + f.key.replace(/\W/g,'_');
+  const cls = `f${f.wide?' wide':''}${f.sub?' sub':''}`;
+  const unit = f.unit ? ` <span class="hint">(${esc(f.unit)})</span>` : '';
+  const hint = f.hint ? `<span class="hint">${esc(f.hint)}</span>` : '';
+  let input = '';
+  switch (f.type){
+    case 'text': input = `<input type="text" id="${id}" data-k="${f.key}" value="${esc(v)}">`; break;
+    case 'date': input = `<input type="date" id="${id}" data-k="${f.key}" value="${esc(v)}">`; break;
+    case 'number': input = `<input type="number" min="0" step="any" id="${id}" data-k="${f.key}" value="${v ?? ''}">`; break;
+    case 'textarea': input = `<textarea id="${id}" data-k="${f.key}">${esc(v)}</textarea>`; break;
+    case 'select': input = `<select id="${id}" data-k="${f.key}"><option value="">—</option>${optionsFor(f).map(o=>`<option value="${esc(o.v)}"${v===o.v?' selected':''}>${esc(o.l)}</option>`).join('')}</select>`; break;
+    case 'multi': {
+      const arr = Array.isArray(v) ? v : [];
+      input = `<div class="chips" data-multi="${f.key}">${optionsFor(f).map(o=>`<label class="${arr.includes(o.v)?'on':''}"><input type="checkbox" value="${esc(o.v)}"${arr.includes(o.v)?' checked':''}>${esc(o.l)}</label>`).join('')}</div>`;
+      break;
+    }
+    case 'yesno': case 'ynt': {
+      const opts = f.type==='ynt' ? [['yes','Yes'],['no','No'],['tbd','TBD']] : [['yes','Yes'],['no','No']];
+      input = `<div class="seg" data-seg="${f.key}">${opts.map(([ov,ol])=>`<button type="button" data-v="${ov}" class="${v===ov?'on':''}">${ol}</button>`).join('')}</div>`;
+      break;
+    }
+    case 'features': input = `<div data-features="${f.key}"></div><button type="button" class="btn" data-addfeat="${f.key}" style="width:max-content">+ Add feature</button>`; break;
+  }
+  return `<div class="${cls}" data-field="${f.key}"><label class="lbl" for="${id}">${esc(f.label)}${unit}</label>${input}${hint}</div>`;
+}
+
+function setVal(k, v){
+  if (v === '' || v === null || v === undefined || (Array.isArray(v) && !v.length)) delete state.data[k];
+  else state.data[k] = v;
+  state.dirty = true; $('#savedAt').textContent = 'Unsaved changes';
+  refreshVisibility(); renderSummary();
+}
+
+function bindForm(){
+  const form = $('#form');
+  form.oninput = e => {
+    const el = e.target;
+    if (el.dataset.k){
+      const f = FIELD[el.dataset.k];
+      setVal(el.dataset.k, f.type==='number' ? (el.value===''?'':Number(el.value)) : el.value);
+    } else if (el.closest('[data-multi]') && el.type==='checkbox'){
+      const box = el.closest('[data-multi]');
+      el.parentElement.classList.toggle('on', el.checked);
+      setVal(box.dataset.multi, [...box.querySelectorAll('input:checked')].map(i=>i.value));
+    } else if (el.closest('[data-features]')){
+      readFeatures(el.closest('[data-features]').dataset.features);
+    }
+  };
+  form.onchange = form.oninput;
+  form.onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const seg = b.closest('[data-seg]');
+    if (seg){
+      const k = seg.dataset.seg, nv = state.data[k]===b.dataset.v ? '' : b.dataset.v;
+      seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x.dataset.v===nv));
+      setVal(k, nv);
+    } else if (b.dataset.addfeat){
+      const k = b.dataset.addfeat; const list = (state.data[k]||[]).slice(); list.push({name:'',need:'required',notes:''});
+      state.data[k]=list; drawFeatures(k); state.dirty=true;
+      const rows = document.querySelectorAll(`[data-features="${k}"] .feat`); rows[rows.length-1]?.querySelector('input')?.focus();
+    } else if (b.dataset.delfeat !== undefined){
+      const box = b.closest('[data-features]'); const k = box.dataset.features;
+      const list = (state.data[k]||[]).slice(); list.splice(Number(b.dataset.delfeat),1); setVal(k, list); drawFeatures(k);
+    }
+  };
+  for (const s of SECTIONS) for (const f of s.fields) if (f.type==='features') drawFeatures(f.key);
+}
+
+function drawFeatures(k){
+  const box = document.querySelector(`[data-features="${k}"]`); if (!box) return;
+  const list = state.data[k] || [];
+  box.innerHTML = list.map((r,i)=>`<div class="feat">
+    <input placeholder="Feature (e.g. Fan modes from BACnet)" data-fi="name" value="${esc(r.name)}">
+    <select data-fi="need">${[['required','Required'],['nice','Nice to have'],['no','Not needed'],['tbd','TBD']].map(([v,l])=>`<option value="${v}"${r.need===v?' selected':''}>${l}</option>`).join('')}</select>
+    <input placeholder="Notes" data-fi="notes" value="${esc(r.notes)}">
+    <button type="button" class="btn ghost" data-delfeat="${i}" title="Remove">✕</button></div>`).join('');
+}
+function readFeatures(k){
+  const rows = [...document.querySelectorAll(`[data-features="${k}"] .feat`)].map(r=>({
+    name:r.querySelector('[data-fi=name]').value, need:r.querySelector('[data-fi=need]').value, notes:r.querySelector('[data-fi=notes]').value }));
+  setVal(k, rows);
+}
+
+function refreshVisibility(){
+  for (const s of SECTIONS){
+    let filled = 0, total = 0;
+    for (const f of s.fields){
+      const vis = visible(f, state.data);
+      document.querySelector(`[data-field="${f.key}"]`)?.classList.toggle('hidden', !vis);
+      if (vis){ total++; if (state.data[f.key] !== undefined) filled++; }
+    }
+    const n = document.querySelector(`[data-count="${s.id}"]`); if (n) n.textContent = `${filled}/${total}`;
+  }
+  $('#edTitle').textContent = state.data['overview.title'] || 'New requirement';
+}
+
+/* only keep answers for questions that are currently visible */
+function prunedData(){
+  const out = {};
+  for (const s of SECTIONS) for (const f of s.fields){
+    if (!visible(f, state.data)) continue;
+    let v = state.data[f.key];
+    if (f.type==='features' && Array.isArray(v)) v = v.filter(r => r.name && r.name.trim());
+    if (v === undefined || v === '' || (Array.isArray(v) && !v.length)) continue;
+    out[f.key] = v;
+  }
+  return out;
+}
+
+/* ---------- summary + device sketch ---------- */
+function label(k, v){
+  const f = FIELD[k]; if (!f) return v;
+  const opts = optionsFor(f);
+  const one = x => opts.find(o=>o.v===x)?.l ?? (x==='yes'?'Yes':x==='no'?'No':x==='tbd'?'TBD':x);
+  return Array.isArray(v) ? v.map(one).join(', ') : one(v);
+}
+function deviceSVG(d){
+  const disp = d['ui.display'], size = Number(d['ui.size'])||0, orient = d['ui.orientation'];
+  let w = 120, h = 120;
+  if (orient==='portrait'){ w=96; h=140; } else if (orient==='landscape'){ w=150; h=100; }
+  const hasScreen = ['segment','tft','oled','epaper'].includes(disp);
+  const sw = w*0.72, sh = hasScreen ? Math.min(h*0.55, sw*(orient==='portrait'?1.3:orient==='landscape'?0.6:0.8)) : 0;
+  const leds = disp==='led';
+  const screenFill = disp==='tft'?'#1d3557':disp==='oled'?'#0b0b0b':disp==='epaper'?'#e9e7df':'#c9d6c3';
+  const pir = (d['sensing.onboard']||[]).includes('pir');
+  return `<svg width="${w+20}" height="${h+20}" viewBox="-10 -10 ${w+20} ${h+20}" aria-label="Rough device sketch">
+    <rect x="0" y="0" width="${w}" height="${h}" rx="14" fill="#fbfcfd" stroke="#c4ccd6" stroke-width="2"/>
+    ${hasScreen?`<rect x="${(w-sw)/2}" y="${h*0.14}" width="${sw}" height="${sh}" rx="5" fill="${screenFill}"/>
+      <text x="${w/2}" y="${h*0.14+sh/2+5}" text-anchor="middle" font-size="13" fill="${disp==='epaper'||disp==='segment'?'#33402f':'#e8f0fb'}" font-family="system-ui">${disp==='segment'?'72°':'72°F'}</text>`:''}
+    ${leds?`<circle cx="${w/2-12}" cy="${h*0.3}" r="4" fill="#2bb673"/><circle cx="${w/2}" cy="${h*0.3}" r="4" fill="#f5a524"/><circle cx="${w/2+12}" cy="${h*0.3}" r="4" fill="#c4ccd6"/>`:''}
+    ${pir?`<circle cx="${w/2}" cy="${h-18}" r="7" fill="#eef1f5" stroke="#c4ccd6"/>`:''}
+    ${size?`<text x="${w/2}" y="${h+8}" text-anchor="middle" font-size="10" fill="#5d6b7e" font-family="system-ui">${size}" ${esc(orient||'')}</text>`:''}
+  </svg>`;
+}
+function renderSummary(){
+  const d = prunedData();
+  const n = k => Number(d[k])||0;
+  const io = [['Relays','io.relays'],['AO','io.analog_outputs'],['AI','io.analog_inputs'],['UI','io.universal_inputs'],['DI','io.digital_inputs']]
+    .filter(([,k])=>n(k)).map(([l,k])=>`${n(k)} ${l}`).join(' · ') || '—';
+  const protos = ['comms.rs485.protocols','comms.ethernet.protocols','comms.wifi.protocols'].flatMap(k => (d[k]||[]).map(v => label(k,[v]))).filter(x=>x!=='Other');
+  const rows = [
+    ['Type', d['overview.product_type'] ? label('overview.product_type', d['overview.product_type']) : '—'],
+    ['I/O', io],
+    ['Interfaces', d['comms.interfaces'] ? label('comms.interfaces', d['comms.interfaces']) : '—'],
+    ['Protocols', [...new Set(protos)].join(', ') || '—'],
+    ['Display', d['ui.display'] ? label('ui.display', d['ui.display']) + (d['ui.size']?`, ${d['ui.size']}"`:'') : '—'],
+    ['Plastics', d['mech.reuse']==='yes' ? (d['mech.family']?label('mech.family',d['mech.family']):'Reuse (family?)') : d['mech.reuse'] ? label('mech.reuse', d['mech.reuse']) : '—'],
+    ['Profiles', d['fw.profiles'] ? label('fw.profiles', d['fw.profiles']) : '—'],
+    ['Low-code', d['feat.lowcode'] ? label('feat.lowcode', d['feat.lowcode']) : '—'],
+    ['Certs', d['cert.list'] ? label('cert.list', d['cert.list']) : '—'],
+  ];
+  $('#summary').innerHTML = `<h3>Spec at a glance</h3>
+    <div class="device">${deviceSVG(d)}</div>
+    <dl class="kv">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    <h3>Later phases</h3>
+    <div class="hint" style="color:var(--muted);font-size:12px">Product match, BOQ cost and full visual mock-up will appear here.</div>`;
+}
+
+/* ---------- export ---------- */
+function toMarkdown(){
+  const d = prunedData();
+  let md = `# ${d['overview.title'] || 'Untitled requirement'}\n\nStatus: ${state.status}\n`;
+  for (const s of SECTIONS){
+    const lines = [];
+    for (const f of s.fields){
+      if (!(f.key in d)) continue;
+      const v = d[f.key];
+      if (f.type==='features') v.forEach(r => lines.push(`- **${r.name}** — ${({required:'Required',nice:'Nice to have',no:'Not needed',tbd:'TBD'})[r.need]}${r.notes?` (${r.notes})`:''}`));
+      else lines.push(`- **${f.label}${f.unit?` (${f.unit})`:''}:** ${['text','textarea','date','number'].includes(f.type) ? v : label(f.key, v)}`);
+    }
+    if (lines.length) md += `\n## ${s.title}\n${lines.join('\n')}\n`;
+  }
+  return md;
+}
+function download(name, text, type){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text],{type})); a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- list ---------- */
+async function loadList(){
+  show('list');
+  state.specs = (await api('/api/specs')).specs;
+  drawList();
+}
+function drawList(){
+  const q = $('#search').value.trim().toLowerCase();
+  const rows = state.specs.filter(s => !q || [s.title,s.requested_by,s.product_type,s.status].join(' ').toLowerCase().includes(q));
+  if (!state.specs.length){ $('#listWrap').innerHTML = `<div class="empty">No requirements yet. Click <b>+ New requirement</b> to capture the first one.</div>`; return; }
+  $('#listWrap').innerHTML = `<table class="list"><thead><tr><th>Name</th><th>Type</th><th>Requested by</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+    ${rows.map(s=>`<tr class="row" data-id="${esc(s.id)}"><td><b>${esc(s.title)}</b></td><td>${esc(label('overview.product_type', s.product_type)||'—')}</td><td>${esc(s.requested_by||'—')}</td><td><span class="pill ${esc(s.status)}">${esc(s.status.replace('_',' '))}</span></td><td>${esc(fmtDate(s.updated_at))}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+function fmtDate(s){ if(!s) return ''; const d = new Date(s.replace(' ','T')+'Z'); return isNaN(d)? s : d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}); }
+
+/* ---------- editor ---------- */
+async function openSpec(id){
+  if (id){
+    const r = await api('/api/specs/'+encodeURIComponent(id));
+    state.id = r.spec.id; state.data = r.spec.data; state.status = r.spec.status;
+    $('#savedAt').textContent = 'Saved ' + fmtDate(r.spec.updated_at);
+  } else {
+    state.id = null; state.data = {}; state.status = 'draft'; $('#savedAt').textContent = '';
+  }
+  state.dirty = false; $('#status').value = state.status;
+  show('edit'); renderForm(); window.scrollTo(0,0);
+  history.replaceState(null,'', id ? '#spec/'+id : '#new');
+}
+async function save(){
+  const data = prunedData();
+  if (!data['overview.title']){ toast('Give the requirement a name first'); $('#f_overview_title')?.focus(); return; }
+  const body = JSON.stringify({ data, status: $('#status').value });
+  const r = state.id ? await api('/api/specs/'+encodeURIComponent(state.id), {method:'PUT', body}) : await api('/api/specs', {method:'POST', body});
+  state.id = r.spec.id; state.dirty = false; state.status = r.spec.status;
+  $('#savedAt').textContent = 'Saved ' + fmtDate(r.spec.updated_at);
+  history.replaceState(null,'', '#spec/'+state.id);
+  toast('Saved');
+}
+
+/* ---------- wiring ---------- */
+const FIELD = Object.fromEntries(SECTIONS.flatMap(s => s.fields.map(f => [f.key, f])));
+
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault(); $('#loginErr').textContent = '';
+  try { await api('/api/login', {method:'POST', body: JSON.stringify({password: $('#pw').value})}); $('#pw').value=''; boot(); }
+  catch(err){ $('#loginErr').textContent = err.message==='unauthorized' ? 'Wrong password' : err.message; show('login'); }
+};
+$('#btnLogout').onclick = async () => { await fetch('/api/logout',{method:'POST'}); show('login'); };
+$('#btnNew').onclick = () => openSpec(null);
+$('#btnBack').onclick = () => { if (state.dirty && !confirmLeave()) return; history.replaceState(null,'','#'); loadList(); };
+$('#btnSave').onclick = () => save().catch(e => toast('Save failed: '+e.message));
+$('#status').onchange = () => { state.dirty = true; $('#savedAt').textContent = 'Unsaved changes'; };
+$('#search').oninput = drawList;
+$('#listWrap').onclick = e => { const tr = e.target.closest('tr.row'); if (tr) openSpec(tr.dataset.id); };
+const fileName = () => (prunedData()['overview.title']||'requirement').replace(/[^\w-]+/g,'_');
+$('#btnExportMd').onclick = () => download(fileName()+'.md', toMarkdown(), 'text/markdown');
+$('#btnExportJson').onclick = () => download(fileName()+'.json', JSON.stringify({status:$('#status').value, data:prunedData()}, null, 2), 'application/json');
+function confirmLeave(){ return window.confirm('You have unsaved changes. Leave without saving?'); }
+window.addEventListener('beforeunload', e => { if (state.dirty){ e.preventDefault(); e.returnValue=''; } });
+document.addEventListener('keydown', e => { if ((e.ctrlKey||e.metaKey) && e.key==='s' && !$('#viewEdit').classList.contains('hidden')){ e.preventDefault(); $('#btnSave').click(); } });
+
+async function boot(){
+  try {
+    FAMILIES = (await api('/api/families')).families;
+    const m = location.hash.match(/^#spec\/(.+)$/);
+    if (m) await openSpec(decodeURIComponent(m[1]));
+    else if (location.hash === '#new') await openSpec(null);
+    else await loadList();
+  } catch(e){ if (e.message!=='unauthorized') toast(e.message); }
+}
+boot();
+</script>
+</body>
+</html>

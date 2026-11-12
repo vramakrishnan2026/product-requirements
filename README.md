@@ -1,0 +1,58 @@
+# Product Spec Configurator
+
+Account: 75fproduct@gmail.com · D1 database: `product-spec-db` (`ac34d9ae-fe01-4b51-90a8-0a1c6aeb7d63`)
+
+Everything below is done in the Cloudflare dashboard. No command line needed.
+
+## 1. Create the tables (once)
+1. **Storage & Databases → D1 → product-spec-db → Console**
+2. Paste the whole of `schema.sql` and click **Execute**.
+3. Check: `SELECT * FROM product_families;` should list 6 placeholder families.
+
+## 2. Create the Worker
+1. **Workers & Pages → Create → Create Worker** (start from "Hello World").
+2. Name it `product-spec` and click **Deploy**.
+3. Click **Edit code**, delete everything in `worker.js`, paste the contents of **`dist/worker.js`** and click **Deploy**.
+
+## 3. Connect the database
+**Worker → Settings → Bindings → Add → D1 database**
+- Variable name: `DB` (exactly that)
+- Database: `product-spec-db`
+
+## 4. Set the password
+**Worker → Settings → Variables and Secrets → Add**, type **Secret**:
+- `ACCESS_PASSWORD`: the shared password you give people
+- `SESSION_SECRET`: any long random string (keeps logins signed)
+
+Changing either value signs everyone out.
+
+## 5. Open it
+Go to the Worker's URL (`https://product-spec.<your-subdomain>.workers.dev`) and sign in with the password.
+
+---
+
+## Updating later
+When you get a new `dist/worker.js` from me: **Edit code**, paste it, **Deploy**. The data stays in D1.
+
+Editing the product-family list (the "reuse plastics" dropdown) is done in the D1 Console, e.g.:
+```sql
+UPDATE product_families SET name='OmniStat (Gen 2)', notes='…' WHERE id='omnistat';
+INSERT INTO product_families (id, name, sort_order) VALUES ('newfam', 'New family', 70);
+UPDATE product_families SET active=0 WHERE id='connect';   -- hide from dropdown
+```
+
+## What is stored
+| Table | Phase | Purpose |
+|---|---|---|
+| `specs` | 1 | One row per requirement sheet; all answers as JSON |
+| `spec_values` | 1 → 2 | Every answer flattened (one row per option), ready for product matching and BOQ costing |
+| `spec_history` | 1 | Previous version each time a spec is saved |
+| `product_families` | 1 | Dropdown list (placeholders for now) |
+| `products`, `product_capabilities` | 2 | Existing product data to match against (empty) |
+| `boq_items`, `boq_feature_map` | 3 | BOQ parts, costs, and which requirement pulls in which part (empty) |
+
+## Planned later
+- Phase 2: product matching ("this exists already" vs "new product")
+- Phase 3: BOQ cost estimate (summary and detailed) from the BOQ sheet
+- Visual mock-up from the spec plus the mechanical file
+- Microsoft sign-in with Carrier accounts, replacing the shared password, after Carrier IT approves it

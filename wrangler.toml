@@ -1,0 +1,10 @@
+# Only needed if you deploy from the command line (npx wrangler deploy).
+# Dashboard-only setup does not use this file.
+name = "product-spec"
+main = "dist/worker.js"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "product-spec-db"
+database_id = "ac34d9ae-fe01-4b51-90a8-0a1c6aeb7d63"
