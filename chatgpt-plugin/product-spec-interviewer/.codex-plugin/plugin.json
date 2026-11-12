@@ -1,7 +1,21 @@
 {
   "name": "product-spec-interviewer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Interviews a product manager (by voice or text) to capture a new building-automation product requirement and saves it into the Product Spec Configurator.",
+  "author": {
+    "name": "75F / Carrier product team",
+    "url": "https://github.com/vramakrishnan2026"
+  },
+  "homepage": "https://github.com/vramakrishnan2026/product-requirements",
+  "repository": "https://github.com/vramakrishnan2026/product-requirements",
+  "license": "UNLICENSED",
+  "keywords": [
+    "product requirements",
+    "spec",
+    "interview",
+    "building automation",
+    "hvac"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Product Spec Interviewer",
@@ -9,9 +23,17 @@
     "longDescription": "Asks the Product Spec Configurator's questions one at a time (I/O, communication interfaces and protocols, display, form factor and plastics reuse, certification, firmware profiles and features, mock-up, BOQ and product match), follows the branches, asks for clarification on ambiguous answers, and saves each section to the requirement sheet so it can be reviewed on the web page.",
     "developerName": "75F / Carrier product team",
     "category": "Productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://github.com/vramakrishnan2026/product-requirements",
-    "defaultPrompt": ["Start a new product requirement interview", "Continue my last product requirement"],
-    "brandColor": "#0B4EA2"
+    "defaultPrompt": [
+      "Start a new product requirement interview",
+      "Continue my last product requirement"
+    ],
+    "brandColor": "#0B4EA2",
+    "logo": "./assets/logo.png",
+    "composerIcon": "./assets/composer-icon.png"
   }
 }
