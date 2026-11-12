@@ -1,0 +1,13 @@
+{
+  "name": "product-spec-interviewer",
+  "version": "1.0.0",
+  "description": "Interviews a product manager (by voice or text) to capture a new building-automation product requirement and saves it into the Product Spec Configurator.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Product Spec Interviewer",
+    "shortDescription": "Capture product requirements by conversation",
+    "developerName": "75F / Carrier product team",
+    "category": "Productivity",
+    "defaultPrompt": "Start a new product requirement interview"
+  }
+}

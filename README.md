@@ -63,3 +63,25 @@ UPDATE product_families SET active=0 WHERE id='connect';   -- hide from dropdown
 - Phase 3: BOQ cost estimate (summary and detailed) from the BOQ sheet
 - Visual mock-up from the spec plus the mechanical file
 - Microsoft sign-in with Carrier accounts, replacing the shared password, after Carrier IT approves it
+
+---
+
+## ChatGPT plugin (voice / chat interview)
+
+The Worker also serves an MCP endpoint that ChatGPT (or Claude) uses to read the questions and save answers. Answers saved there show up on the web page immediately.
+
+**1. Turn on the endpoint.** Worker → Settings → Variables and Secrets → add Secret `MCP_TOKEN` = a long random string (e.g. from `openssl rand -hex 24`). Use letters/digits only.
+The MCP address is then `https://<your-worker>.workers.dev/mcp/<MCP_TOKEN>`. Treat this URL like a password: anyone with it can read and save requirements. To revoke it, change `MCP_TOKEN`.
+
+**2. Add it to ChatGPT** (on the web, chatgpt.com):
+1. Plugins → **Add** → **Add custom MCP server**.
+2. Name: `Product Spec Configurator`. Server URL: the MCP address above. Authentication: **No authentication**.
+3. Accept the warning → **Create as a plugin** → install it.
+
+**3. Add the interview skill (recommended).** Plugins → **Add** → **Upload plugin archive** → `product-spec-interviewer-plugin.zip` (built from `chatgpt-plugin/`).
+If the upload is rejected, open the **Skills** tab and create a skill from `chatgpt-plugin/product-spec-interviewer/skills/spec-interview/SKILL.md` instead.
+
+**4. Use it.** New chat → type `@Product Spec Configurator start a new product requirement interview`, or start voice mode and say the same.
+ChatGPT asks before running write actions; approve `save_spec` (you can choose to always allow).
+
+Later: replace the URL token with OAuth (Carrier Microsoft sign-in).
