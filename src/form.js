@@ -87,7 +87,7 @@ const SECTIONS = [
 
   { id:'firmware', title:'Firmware: operation & profiles', desc:'Hardware and firmware are captured together in this one sheet.', fields:[
     { key:'fw.operation', label:'Operating mode', type:'multi', wide:true, options:O(['standalone','Standalone application'],['ccu','Connected to CCU'],['failsafe','Failsafe-only standalone (when CCU is lost)'],['bms','Integrated with BMS']) },
-    { key:'fw.profiles', label:'Profiles to support', type:'multi', wide:true, options:O(['2pipe','2-pipe FCU'],['4pipe','4-pipe FCU'],['cpu','Conventional package unit'],['hpu','Heat pump unit'],['vav','VAV'],['monitor','Monitoring only'],['other','Other']) },
+    { key:'fw.profiles', label:'Profiles to support', type:'multi', wide:true, options:O(['2pipe','2-pipe FCU'],['4pipe','4-pipe FCU'],['cpu','Conventional package unit'],['hpu','Heat pump unit'],['uv2','Unit ventilator 2-pipe (economizer)'],['vav','VAV'],['monitor','Monitoring only'],['other','Other']) },
     { key:'fw.profiles_other', label:'Other profiles', type:'text', wide:true, showIf:{k:'fw.profiles', has:'other'} },
     { key:'fw.profile_std', label:'Standard profiles, or exceptions needed?', type:'select', options:O(['standard','Standard as-is'],['exceptions','Exceptions needed'],['tbd','TBD']) },
     { key:'fw.profile_exceptions', label:'Describe the exceptions', type:'textarea', wide:true, showIf:{k:'fw.profile_std', eq:'exceptions'} },
@@ -130,8 +130,7 @@ const FEATURE_CHOICES = [{v:'std', l:'Standard'}, {v:'chg', l:'Changed'}, {v:'no
   const extra = Object.entries(PROFILES).map(([pid, p]) => {
     const when = {k:'fw.profiles', has:pid};
     const fields = [];
-    for (const entry of p.features){
-      const f = profileFeature(entry);
+    for (const f of profileFeatures(pid)){
       fields.push({ key:`prof.${pid}.${f.id}`, label:f.name, type:'feature', options:FEATURE_CHOICES, wide:true,
         group:f.group, profile:pid, feature:f.id, showIf:when });
       fields.push({ key:`prof.${pid}.${f.id}.notes`, label:`${f.name}: what changes?`, type:'textarea', wide:true, sub:true,

@@ -223,7 +223,7 @@ async function mcpMessage(msg, env, url) {
       case 'tools/list': return ok({ tools: TOOLS });
       case 'tools/call': {
         const r = await callTool(params.name, params.arguments || {}, env, url);
-        return ok({ content: [{ type: 'text', text: JSON.stringify(r.data, null, 1) }], structuredContent: r.data, isError: !!r.isError });
+        return ok({ content: [{ type: 'text', text: JSON.stringify(r.data) }], structuredContent: r.data, isError: !!r.isError });
       }
       default:
         if (method?.startsWith('notifications/')) return null;
@@ -296,7 +296,8 @@ async function callTool(name, args, env, url) {
     return { data: { note: 'Profile sections (Profile: …) list each reusable control feature; values std (default) | chg | no. Call get_profile for the standard behaviour text before discussing a profile.',
       sections: SECTIONS.map(s => ({ id: s.id, title: s.title, note: s.desc || undefined, later_phase: s.phase || undefined,
       ask_only_if: s.profile ? `fw.profiles includes ${s.profile}` : undefined,
-      features: s.profile ? s.fields.filter(f => f.type === 'feature').map(f => ({ key: f.key, name: f.label, group: f.group })) : undefined,
+      features_by_group: s.profile ? s.fields.filter(f => f.type === 'feature').reduce((g, f) => ((g[f.group] ||= []).push(f.key.split('.').pop()), g), {}) : undefined,
+      key_pattern: s.profile ? `prof.${s.profile}.<feature>` : undefined,
       values: s.profile ? 'std (default) | chg (then set <key>.notes) | no; free text in prof.' + s.profile + '.other' : undefined,
       questions: s.profile ? undefined : s.fields.map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit, hint: f.hint,
         options: f.options ? optionsOf(f, fams).map(o => ({ value: o.v, label: o.l })) : undefined,
@@ -306,7 +307,7 @@ async function callTool(name, args, env, url) {
     const P = PROFILES[args.profile];
     if (!P) return { isError: true, data: { error: `Unknown profile. Available: ${Object.keys(PROFILES).join(', ')}` } };
     return { data: { profile: args.profile, name: P.name, summary: P.summary, typical_io: P.typicalIO, port_sets: P.portSets,
-      features: P.features.map(e => { const f = profileFeature(e); return { key: `prof.${args.profile}.${f.id}`, name: f.name, group: f.group, standard_behaviour: f.behaviour, tuner_defaults: f.tuners, to_confirm: f.confirm.length ? f.confirm : undefined }; }) } };
+      features: profileFeatures(args.profile).map(f => { return { key: `prof.${args.profile}.${f.id}`, name: f.name, group: f.group, standard_behaviour: f.behaviour, tuner_defaults: f.tuners, to_confirm: f.confirm.length ? f.confirm : undefined }; }) } };
   }
   if (name === 'list_specs') {
     const q = `%${String(args.search || '').toLowerCase()}%`;

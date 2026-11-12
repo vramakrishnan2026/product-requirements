@@ -229,7 +229,7 @@ function sectionFieldsHTML(s, d){
   return html;
 }
 function featureDetail(f){
-  const pf = profileFeature(PROFILES[f.profile].features.find(e => (e.id||e) === f.feature));
+  const pf = profileFeatures(f.profile).find(x => x.id === f.feature);
   return `<details><summary>Standard behaviour</summary><ul>${pf.behaviour.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>
     ${pf.tuners.length?`<table>${pf.tuners.map(([n,v])=>`<tr><td>${esc(n)}</td><td>${esc(v)}</td></tr>`).join('')}</table>`:''}
     ${pf.confirm.length?`<div class="confirm"><b>To confirm:</b><ul>${pf.confirm.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`:''}</details>`;
@@ -426,8 +426,8 @@ function buildDoc(){
         h(3, `Configurable options — ${ps.device}`); table(['Port type','Options'], ps.options);
       }
       let grp = null; const notNeeded = [];
-      for (const entry of P.features){
-        const f = profileFeature(entry), v = d[`prof.${s.profile}.${f.id}`] || 'std';
+      for (const f of profileFeatures(s.profile)){
+        const v = d[`prof.${s.profile}.${f.id}`] || 'std';
         if (v === 'no'){ notNeeded.push(f.name); continue; }
         if (f.group !== grp){ grp = f.group; h(3, grp); }
         h(4, `${f.name} — ${v==='chg'?'CHANGED':'Standard'}`);

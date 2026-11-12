@@ -8,7 +8,7 @@
      - a feature entry can add profile-specific lines / tuner defaults (merged over the shared feature)
    The profile id must match an option value of fw.profiles in form.js. */
 
-const FEATURE_GROUPS = ['Control & setpoints', 'Modes', 'Staged & modulating conditioning', 'Water side', 'Fan', 'Electric heat', 'Ventilation', 'Inputs & protection', 'Configuration'];
+const FEATURE_GROUPS = ['Control & setpoints', 'Modes', 'Staged & modulating conditioning', 'Water side', 'Supply air control', 'Fan', 'Electric heat', 'Ventilation', 'Outside air & economizer', 'Inputs & protection', 'Configuration'];
 
 const FEATURES = {
   /* ---- Control & setpoints ---- */
@@ -130,6 +130,31 @@ const FEATURES = {
       'When mapped, the return air sensor replaces the current temperature sensor for zone load and is shown on the device screen.'],
     tuners: [['AirSamplingWaitTime', '30 min'], ['AirSamplingOnTime', '1 min']] },
 
+  /* ---- Supply air control ---- */
+  sat_control: { name: 'Supply air temperature control: face & bypass or modulating valve', group: 'Supply air control',
+    behaviour: [
+      'Two capacity-control sequences (ASHRAE 2020 Handbook): (1) face & bypass damper (modulating or relay) with an end-of-cycle 2-position valve or free-flow coil; (2) fully modulating water valve (or 2-position valve), no face & bypass damper.',
+      'Fan in either sequence: 1–3 staged speeds, modulating or EC fan.',
+      'Choosing face & bypass removes the modulating valves from the analog output options; choosing modulating valve removes the face & bypass damper (with an alert if already mapped). Relays are not restricted.',
+      'Default: fully modulating valve.'] },
+
+  fb_damper: { name: 'Face & bypass damper', group: 'Supply air control',
+    behaviour: [
+      'Analog: modulates between analogOutXAtMinFaceBypassDamper and …Max with the loop output (reverse acting allowed); fully bypassed until the loop reaches the economizer share, then moves towards face as the cooling loop goes from that point to 100% while the 2-position valve opens.',
+      'Relay: on when the cooling or heating loop > F&BdamperRelayActivationHysteresis, off when the loop drops to 0.',
+      'When the mode/water does not allow conditioning, the damper goes to full bypass.'],
+    tuners: [['analogOutXAtMinFaceBypassDamper', '2 V'], ['analogOutXAtMaxFaceBypassDamper', '10 V'], ['F&BdamperRelayActivationHysteresis', '10% (0–100%)']],
+    confirm: ['Text says "water valve signal will modulate between …FaceBypassDamper min/max as the cooling loop changes from 30% to 100%".'] },
+
+  sa_tempering: { name: 'Supply air tempering', group: 'Supply air control',
+    behaviour: [
+      'Keeps a minimum supply air temperature when cold outside air (e.g. for minimum ventilation) pulls the supply air below the SA tempering setpoint while the heating loop is 0.',
+      'Active only when enabled, a supply air sensor is mapped, CO₂ < threshold and the DCV loop is 0. SA tempering loop = PI(supply air temp, setpoint); 0 when supply air > setpoint.',
+      'While active, the face & bypass damper (relay via its hysteresis, or analog min–max) follows the tempering loop; MAT safety still applies.',
+      'Enabling requires a heating valve (relay or analog), fan low-ventilation or analog fan, a supply air sensor and an OA or DCV damper.'],
+    tuners: [['Supply Air Tempering Setpoint', '70 °F']],
+    confirm: ['The setpoint is described as introduced "for 4P Unit Ventilator".'] },
+
   /* ---- Fan ---- */
   fan_staging: { name: 'Staged fan (relays)', group: 'Fan',
     behaviour: [
@@ -235,7 +260,54 @@ const FEATURES = {
     tuners: [['humidityHysteresis', '5%'], ['targetMinInsideHumidity', 'same as system / 25%'], ['targetMaxInsideHumidity', 'same as system / 45%']],
     confirm: ['Second description in the CPU profile reverses the on/off conditions ("on if humidity crosses over the threshold, off 5% below" for the humidifier, and the opposite for the dehumidifier).'] },
 
+  /* ---- Outside air & economizer ---- */
+  economizer: { name: 'Economizer (dry bulb and enthalpy)', group: 'Outside air & economizer',
+    behaviour: [
+      'Free cooling with outside air; works only in cooling, regardless of occupancy. The outside-air damper is the first stage of cooling capacity.',
+      'Economizing loop = cooling loop × 100 / standaloneEconomizingToMainCoolingLoopMap; it maxes out at that share of the cooling loop, after which mechanical cooling (2-position valve + face & bypass, or modulating valve) follows the cooling loop from the share to 100%.',
+      'Dry bulb: below economizingDryBulbThreshold outside temperature, economize regardless of enthalpy.',
+      'Enthalpy: economizing available when outside enthalpy + duct compensation offset < inside enthalpy (enthalpy from temperature and humidity: A·RH + B, A = 0.007468·T² − 0.4344·T + 11.1769, B = 0.2372·T + 0.1230).',
+      'No economizing outside the min/max outside temperature and humidity limits.',
+      'Return air damper = 100% − outside air damper.'],
+    tuners: [['standaloneEconomizingToMainCoolingLoopMap', '30%'], ['economizingDryBulbThreshold', '55 °F'], ['Outside air min / max temp', '0 / 70 °F'], ['Outside air min / max humidity', '0 / 100%'],
+      ['Duct temperature offset', '0 °F'], ['Enthalpy duct compensation offset', '0 BTU/lb']],
+    confirm: ['Text also says only dry bulb is currently considered because humidity readings are not accurate enough for enthalpy.'] },
+
+  oa_min_position: { name: 'Outside-air damper minimum positions (Title 24 120.1(c)(3))', group: 'Outside air & economizer',
+    behaviour: [
+      'Configurable minimum OA damper opening (0–100%) for occupied periods: during conditioning, during recirculation (deadband), and per relay fan speed (Low, Medium, High — shown only for mapped speeds). Unoccupied: damper at analog minimum.',
+      'Economizer or DCV can open the damper further; it never goes below the applicable minimum. With both relay and analog fans, the largest applicable minimum is used.',
+      'Damper signal modulates between analogOutXAtMinOAODamper and …Max with the final outside-air loop (reverse acting allowed).'],
+    tuners: [['Min open during conditioning', '10%'], ['Min open during recirculation', '20%'], ['Min open during Fan Low', '20%'], ['Min open during Fan Medium', '15%'], ['Min open during Fan High', '10%'], ['analogOutXAtMinOAODamper', '2 V'], ['analogOutXAtMaxOAODamper', '10 V']],
+    confirm: ['Fan Medium and Fan High minimums are written as appearing "with Fan low being mapped".'] },
+
+  dcv_oa: { name: 'DCV on the outside-air damper', group: 'Outside air & economizer',
+    behaviour: [
+      'Occupied or forced occupied with zone CO₂ > threshold: DCV loop = (CO₂ − threshold) / opening rate; otherwise 0. DCV works only when occupied (any conditioning mode) and not during preconditioning; it also runs in the deadband.',
+      'DCV minimum = applicable OA minimum position + DCV loop. Outside-air loop = the higher of the economizing loop and the DCV minimum.'],
+    tuners: [['zoneCO2Threshold', 'same as system / 800 ppm'], ['zoneCO2Target', 'same as system / 1000 ppm'], ['zoneCO2DamperOpeningRate', 'same as system / 10 %/100 ppm']] },
+
+  mat_safety: { name: 'Mixed-air temperature (MAT) safety', group: 'Outside air & economizer',
+    behaviour: [
+      'When mixed-air temperature drops below the MAT target, the outside-air damper closes progressively, fully closed at the MAT minimum: final OA = OA loop − OA loop × (target − MAT) / (target − minimum). E.g. target 50, minimum 44, MAT 45, OA loop 50% → 8.33%.',
+      'Runs in all modes, including the deadband and while economizing.'],
+    tuners: [['standaloneOutsideDamperMixedAirTarget', '50 °F'], ['standaloneOutsideDamperMixedAirMinimum', '44 °F']] },
+
+  prepurge: { name: 'Smart pre-purge', group: 'Outside air & economizer',
+    behaviour: [
+      'Optional, needs outside-air optimization. During unoccupied, PrePurgeOccupiedTimeOffset before the next occupied period, the OA damper goes to PrePurgeOutsideDamperMinOpen for prePurgeRuntime, flushing the building with outside air.',
+      'Fan runs at PrePurgeFanSpeed (analog fan) or the matching number of fan stages.',
+      'If economizing asks for more OA than the pre-purge position, economizing wins. During preconditioning, the preconditioning setpoints drive the valves.'],
+    tuners: [['PrePurgeOccupiedTimeOffset', '180 min'], ['PrePurgeOutsideDamperMinOpen', '100%'], ['PrePurgeFanSpeed', '50%'], ['prePurgeRuntime', '—']],
+    confirm: ['Acceptance criteria give the pre-purge open position default as 50%.', 'Fan during preconditioning: text says the higher of pre-purge and fan loop; acceptance criteria say the fan follows preconditioning.'] },
+
   /* ---- Inputs & protection ---- */
+  filter_status: { name: 'Filter status', group: 'Inputs & protection',
+    behaviour: ['Filter switch (N/O or N/C) or sensor-bus filter monitor reports OK / Replace; shown as a status message and usable for alerts.'] },
+
+  emergency_shutoff: { name: 'Emergency shutoff input', group: 'Inputs & protection',
+    behaviour: ['Emergency shutoff (N/O or N/C) detected → all relays off and all fan, conditioning and outside-air damper analog outputs at minimum.'] },
+
   ui_types: { name: 'Universal input types', group: 'Inputs & protection',
     behaviour: [
       'Current TX 0–10 / 0–20 / 0–50 A (0–10 V) — monitoring.',
@@ -269,6 +341,25 @@ const FEATURES = {
     confirm: ['Source text (16 Oct addition) is incomplete.'] },
 
   /* ---- Configuration ---- */
+  multi_module: { name: 'Multiple units in one zone', group: 'Configuration',
+    behaviour: ['Up to 4 units can be paired in one zone; the zone can also combine them with other terminal profiles (VAV, SSE, HyperStat/SmartStat) as multi-module.'],
+    confirm: ['Text says both "up to three/four".'] },
+
+  failsafe_settings: { name: 'Fail-safe (standalone) settings', group: 'Configuration',
+    behaviour: [
+      'All algorithms run in standalone mode with default tuners if the CCU is lost.',
+      'Sent to the device: OA damper minimum positions, DCV CO₂ target and threshold, MAT mapping and tuners, condensate override mapping, economizer (dry bulb/enthalpy) tuners, SAT control mode. Pre-purge is not sent.'] },
+
+  sensor_bus: { name: 'Sensor bus (one-wire) sensors', group: 'Configuration',
+    behaviour: [
+      'Duct temperature/humidity sensors on the connect module sensor bus: mixed air, optional supply air and optional outside air (temp, humidity and pressure logical addresses per sensor), plus a filter monitor (DPS).',
+      'Only one sensor of each kind (supply air, mixed air, outside air, current TX, filter, condensate, generic alarm) can be mapped across the sensor bus and universal inputs.'],
+    confirm: ['Physical addresses differ between sections (address 0 = mixed air vs address 0 = supply air + filter monitor).'] },
+
+  display_settings: { name: 'Device display settings', group: 'Configuration',
+    behaviour: ['Show humidity, CO₂ and PM2.5 on the device home screen (yes/no each); disable touch; brightness control.'],
+    tuners: [['PM2.5 target', '15 µg/m³']] },
+
   temp_offset: { name: 'Temperature offset', group: 'Configuration',
     behaviour: ['Configurable temperature offset for the onboard sensor, −10 °F to +10 °F.'] },
 
@@ -410,7 +501,55 @@ const PROFILES = {
       'temp_offset', 'output_test',
       { id: 'default_config', confirm: ['Acceptance criteria list different relay defaults (Cooling stage 1/2, Heating stage 1, Fan high on relay 5) and an "Aux heating" analog output option (2–10 V) that is not in the main option list.'] }],
   },
+
+  uv2: {
+    name: 'Unit ventilator, 2-pipe with economizer',
+    summary: 'Classroom-style unit ventilator (schools, nursing homes, healthcare) bringing conditioned outdoor air into the space: heating, ventilation, mechanical cooling and economizer cooling from one unit. Retrofit on HyperStat Split + connect module replacing 2-wire unit controllers. Typical UVs have an outdoor-air damper, 1–3 fan stages and a modulating water valve; supply air temperature is controlled by face & bypass damper or by a modulating valve. Outside-air optimization (economizer, DCV, MAT safety, pre-purge) can be switched off to run as a plain 2-pipe unit. Markets: US & Canada.',
+    typicalIO: 'HyperStat Split + connect module: 8 relays, 4 analog outputs, 8 universal inputs, sensor bus (3 addresses); onboard temperature, humidity, CO₂, PM2.5',
+    portSets: [{ device: 'HyperStat Split', ports: [['Sensor bus address 0', 'Supply air temperature & humidity, filter monitor'], ['Sensor bus address 1', 'Mixed air temperature & humidity'], ['Sensor bus address 2', 'Outside air temperature & humidity'],
+        ['Relay 1', 'Fan medium speed'], ['Relay 2', 'Fan high speed'], ['Relay 3', 'Fan low speed – ventilation'], ['Relay 4', 'Aux heating stage 1'], ['Relay 5', 'Aux heating stage 2'], ['Relay 6', 'Water valve'], ['Relay 7', 'Occupied enable'], ['Relay 8', 'Fan enable'],
+        ['Analog out 1', 'Fan speed'], ['Analog out 2', 'Face & bypass damper'], ['Analog out 3', 'Outside air optimization damper'], ['Analog out 4', 'DCV modulating damper'],
+        ['Universal input 1', 'Supply water temperature (mandatory)'], ['Universal input 2', 'Supply air temperature'], ['Universal input 3', 'Mixed air temperature'], ['Universal input 4', 'Outside air temperature'],
+        ['Universal input 5', 'Current TX (0–50 A)'], ['Universal input 6', 'Condensate overflow N/C'], ['Universal input 7', 'Filter clogged N/O'], ['Universal input 8', 'Generic alarm N/O']],
+      options: [['Relays', 'Fan low speed – ventilation, Fan low, Fan medium, Fan high, Aux heating stage 1, Aux heating stage 2, Water valve, Fan enable, Occupied enable, F&B damper, DCV damper, Humidifier, Dehumidifier, Externally mapped'],
+        ['Analog outputs', 'Water modulating valve, Fan speed, Face & bypass damper, OA optimization damper, DCV damper, Externally mapped'],
+        ['Universal inputs', 'Supply air, supply water, mixed air, outside air temperature; CO₂; filter status N/O & N/C; condensate overflow N/O & N/C; door/window Title 24 N/O & N/C; door/window N/O & N/C; key card N/O & N/C; generic alarm N/O & N/C; voltage input; thermistor input; generic 1–100 kΩ; current TX 0–10/20/30/50/60/100/120/150/200 A; emergency shutoff N/O & N/C; fan run status N/O & N/C; outside air damper feedback; fire alarm status N/O & N/C']] }],
+    features: [
+      'zone_load_pi', 'pi_hold', { id: 'user_intent', behaviour: ['Target min/max inside humidity appear only when a humidifier or dehumidifier is mapped.'] }, 'occupancy',
+      { id: 'zone_switchover', behaviour: ['Switch happens where the opposite loop output becomes > 0; until then the previous operation mode is held.'] },
+      { id: 'cond_modes', behaviour: [
+          'Water valve / face position only when the supply water matches the demand (chilled water + cooling demand, hot water + heating demand); otherwise the valve is closed/at minimum, the face & bypass damper fully bypassed and the fan off or at minimum (low-ventilation at low).',
+          'Heat only with chilled water: heating comes from aux heat; cool only: aux heat never runs.',
+          'Economizer runs only with cooling demand in Auto or Cool only; DCV, MAT safety and condensate override always run.',
+          'Condensate overflow or conditioning Off: all relays off, all analog outputs off/minimum.'] },
+      { id: 'fan_off', behaviour: ['Fan Off: water valve and fan relays off, analog outputs at minimum.'] },
+      'sat_control', 'fb_damper', 'sa_tempering',
+      { id: 'water_mode_detect', behaviour: ['Without a hard-wired or communicated supply water temperature, the unit runs heating only and assumes hot water; no sampling.'], tuners: [] },
+      { id: 'valve_onoff', behaviour: ['Uses standaloneRelayActivationHysteresis.'] },
+      { id: 'valve_modulating', tuners: [['analogOutXAtMinWaterValve', '2 V'], ['analogOutXAtMaxWaterValve', '10 V']] },
+      { id: 'water_sampling', confirm: [] },
+      { id: 'fan_staging', behaviour: ['Only one fan relay is on at a time. Fan low and Fan low-ventilation cannot both be mapped.'] },
+      { id: 'fan_analog', tuners: [['analogOutXAtMinFan', '2 V'], ['analogOutXAtMaxFan', '10 V'], ['analogOutXAtFanLow', '30%'], ['analogOutXAtFanMedium', '60%'], ['analogOutXAtFanHigh', '100%']] },
+      'fan_modes', 'fan_enable',
+      { id: 'aux_heat_2stage', confirm: ['UV text says reheat is used only in cooling mode, while heat-only with chilled water uses aux heat for heating.', 'Fan behaviour while aux heat runs is not described for the UV.'] },
+      'economizer', 'oa_min_position', 'dcv_oa', 'mat_safety', 'prepurge',
+      { id: 'dcv_damper', tuners: [['analogOutXAtMinDCVDamper', '2 V'], ['analogOutXAtMaxDCVDamper', '10 V']] },
+      { id: 'humidity', behaviour: ['Humidification is locked out when the fan is off or duct humidity exceeds the high limit.'] },
+      { id: 'ui_types', behaviour: ['Adds voltage input (0–10 V), thermistor input (ohms), generic 1–100 kΩ, current TX up to 200 A, emergency shutoff, fan run status, fire alarm status, outside-air damper feedback, filter status and condensate pump failure — boolean inputs show OK/Replace, OK/Drain or Normal/Fault.'],
+        confirm: ['Universal input 8 (generic alarm) is described with the filter text.'] },
+      { id: 'condensate', behaviour: ['Unit ventilator: overflow puts the whole unit into conditioning Off (all relays off, analogs at minimum), updates the status and raises an alert to all peripherals.'] },
+      'filter_status', 'emergency_shutoff',
+      { id: 'door_window', behaviour: ['Title 24 type keeps mechanical ventilation and runs the fan per Title 24; the non-Title 24 type resets all loops (fan, heating, cooling). Each shows as its own schedule state.'],
+        confirm: ['Resetting loops conflicts with "Keep PI loops when outputs are forced off".'] },
+      'key_card', 'multi_module', 'failsafe_settings', 'sensor_bus', 'display_settings',
+      { id: 'default_config', behaviour: ['Outside-air optimization is on by default; turning it off hides economizer, DCV-on-OA, pre-purge and the OA damper output option. Enabling it requires mixed air and outside air sensors and an OA damper.'] }],
+  },
 };
+
+/* Noted for a future 4-pipe unit ventilator profile (from the 2-pipe UV document's port table):
+   Relays: 1 Fan medium, 2 Fan high, 3 Fan low-ventilation, 4 Heating water valve, 5 Aux heating 1, 6 Cooling water valve, 7 Aux heating 2, 8 Fan enable.
+   Analog: 1 Fan speed, 2 Face & bypass damper, 3 OA optimization damper, 4 DCV damper. Universal inputs as 2-pipe UV (UI1 supply water temp not mandatory).
+   Analog options: cooling modulating valve, heating modulating valve, fan speed, OA optimization damper, DCV damper, externally mapped. */
 
 /* Resolve a profile's feature entry: shared feature + profile-specific additions. */
 function profileFeature(entry) {
@@ -422,4 +561,10 @@ function profileFeature(entry) {
     tuners: e.tuners ? [...(base.tuners || []), ...e.tuners] : (base.tuners || []),
     confirm: [...(base.confirm || []), ...(e.confirm || [])],
   };
+}
+
+/* All features of a profile, resolved and ordered by FEATURE_GROUPS (stable within a group). */
+function profileFeatures(pid) {
+  return PROFILES[pid].features.map(profileFeature)
+    .map((f, i) => ({ f, i })).sort((a, b) => FEATURE_GROUPS.indexOf(a.f.group) - FEATURE_GROUPS.indexOf(b.f.group) || a.i - b.i).map(x => x.f);
 }
